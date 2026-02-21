@@ -105,6 +105,7 @@ void RakChatServer::HandlePacket(Packet *packet)
             system_message+= "\033[31m disconnected from the server.\033[37m\n";
             announce.Write(system_message.c_str());
             peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
+            connectionList_.erase(packet->guid);
         }
 			break;
 		case ID_CONNECTION_LOST:
@@ -124,6 +125,7 @@ void RakChatServer::HandlePacket(Packet *packet)
             system_message+= "\033[31m lost connection to the server.\033[37m\n";
             announce.Write(system_message.c_str());
             peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
+            connectionList_.erase(packet->guid);
         }
 			break;
         case ID_CHAT_MESSAGE:
@@ -148,7 +150,7 @@ void RakChatServer::HandlePacket(Packet *packet)
             peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
         }
             break;
-            
+
         case ID_NO_FREE_INCOMING_CONNECTIONS:
 		    printf("The server is full.\n");
 			break;
