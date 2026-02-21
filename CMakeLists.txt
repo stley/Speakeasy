@@ -1,5 +1,35 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.20)
+
 project(RakChat VERSION 0.1.0 LANGUAGES C CXX)
 
-add_executable(RakChat main.cpp)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- RakNet Sources ---
+file(GLOB RAKNET_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source/*.cpp
+)
+
+add_library(raknet STATIC ${RAKNET_SOURCES})
+
+target_include_directories(raknet PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+)
+
+# Some RakNet builds require this on Windows
+if (WIN32)
+    target_compile_definitions(raknet PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+
+if (WIN32)
+    target_link_libraries(raknet PRIVATE ws2_32)
+endif()
+
+# --- Server ---
+add_executable(chat_server server/server.cpp)
+target_link_libraries(chat_server PRIVATE raknet)
+
+# --- Client ---
+add_executable(chat_client client/client.cpp)
+target_link_libraries(chat_client PRIVATE raknet)
