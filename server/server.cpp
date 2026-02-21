@@ -61,7 +61,6 @@ void RakChatServer::HandlePacket(Packet *packet)
                 response.Write((RakNet::MessageID)ID_REGISTER_ME);
                 response.Write('O');
                 peer->Send(&response, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
-                peer->CloseConnection(packet->guid, true, RELIABLE_ORDERED);
             }
             else
             {
@@ -91,21 +90,23 @@ void RakChatServer::HandlePacket(Packet *packet)
 		case ID_DISCONNECTION_NOTIFICATION:
         {
             printf("A client has disconnected.\n");
-            if (!isGuidRegistered(packet->guid)) break;
-            BitStream announce = BitStream();
-            announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
-            std::string system_message = "\033[33m[SYSTEM]\033[37m ";
-            for (const auto& [guid, user] : connectionList_)
+            if (isGuidRegistered(packet->guid))
             {
-                if(user.userGUID == packet->guid)
+                BitStream announce = BitStream();
+                announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
+                std::string system_message = "\033[33m[SYSTEM]\033[37m ";
+                for (const auto& [guid, user] : connectionList_)
                 {
-                    system_message+=user.Name.c_str();
+                    if (user.userGUID == packet->guid)
+                    {
+                        system_message += user.Name.c_str();
+                    }
                 }
+                system_message += "\033[31m disconnected from the server.\033[37m\n";
+                announce.Write(system_message.c_str());
+                peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
+                connectionList_.erase(packet->guid);
             }
-            system_message+= "\033[31m disconnected from the server.\033[37m\n";
-            announce.Write(system_message.c_str());
-            peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
-            connectionList_.erase(packet->guid);
         }
 			break;
 		case ID_CONNECTION_LOST:

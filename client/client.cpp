@@ -1,11 +1,11 @@
 #include "client.hpp"
 
+std::atomic<bool> _init_{ true };
 
 RakChatClient::RakChatClient()
 {
     peer = RakNet::RakPeerInterface::GetInstance();
     peer->Startup(1, &sd, 1);
-    workerThread = std::thread(&RakChatClient::ClientThread, this);
     printf("RakChat Client started.\n");
 }
 RakChatClient::~RakChatClient()
@@ -25,10 +25,6 @@ RakChatClient::~RakChatClient()
 void RakChatClient::ClientThread()
 {
     //printf("Packet thread: It's on! :)\n");
-    while (!running_)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
     while(running_)
     {
         for (packet=peer->Receive(); packet; peer->DeallocatePacket(packet), packet=peer->Receive())
@@ -50,22 +46,14 @@ void RakChatClient::ClientThread()
                         else if (result == 'O')
                         {
                             printf("Registration failed because name is in use.\n");
-                            config_.serverIp.clear();
-                            config_.userName.clear();
-                            config_.serverPort = 65535;
-                            peer->Shutdown(0);
-                            peer->Startup(1, &sd, 1);
-                            this->ClientMain();
+                            _init_ = true;
+                            return;
                         }
                         else
                         {
                             printf("Registration failed.");
-                            config_.serverIp.clear();
-                            config_.userName.clear();
-                            config_.serverPort = 65535;
-                            peer->Shutdown(0);
-                            peer->Startup(1, &sd, 1);
-                            this->ClientMain();    
+                            _init_ = true;
+                            return;
                         }
                         
                     }
@@ -137,6 +125,7 @@ void RakChatClient::ProcessSlashCommand(const char* input)
     else if(strcmp(input, "/exit") == 0)
     {
         std::cout << "Disconnecting from server..." << "\n";
+        _init_ = true;
         running_ = false;
         connected_ = false;
         peer->Shutdown(300);
@@ -188,14 +177,15 @@ void RakChatClient::ClientMain()
     
     peer->Connect(config_.serverIp.c_str(), config_.serverPort, 0, 0);
     running_ = true;
-
+    workerThread = std::thread(&RakChatClient::ClientThread, this);
+    
 
     std::string writeBuffer;
 
     while (!connected_ && running_)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        
+        if (_init_ == true) return;
     }
     std::cout << "> " << std::flush;
     while (connected_) 
@@ -266,9 +256,12 @@ void RakChatClient::ClientMain()
 
 int main()
 {
-    RakChatClient theClient;
     
-    theClient.ClientMain();
-
+    while (_init_)
+    {
+        _init_ = false;
+        RakChatClient theClient;
+        theClient.ClientMain();
+    }
     return 0;
 }
