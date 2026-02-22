@@ -113,6 +113,7 @@ void RakChatClient::ClientThread()
 			        break;
             }
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 }
 
@@ -184,8 +185,8 @@ void RakChatClient::ClientMain()
 
     while (!connected_ && running_)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         if (_init_ == true) return;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     std::cout << "> " << std::flush;
     while (connected_) 
@@ -249,7 +250,7 @@ void RakChatClient::ClientMain()
             }
 
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
 }
