@@ -13,6 +13,7 @@
 #else
     #include <Kbhit.h>
     #define _kbhit kbhit
+    #define _getch getch
 #endif
 
 using namespace RakNet;
