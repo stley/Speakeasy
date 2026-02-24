@@ -30,8 +30,6 @@ private:
     );
     int ProcessAudio(const void* input, void* output, unsigned long frameCount);
 
-    uint8_t _encoded[4000];
-    int16_t _decoded[DEFAULT_FRAMES_PER_BUFFER];
 
     std::atomic<bool> muted_ = false; //Determines whether the client is muted.
     std::atomic<bool> deafen_ = false; //Determines whether the client is deaf (cant hear, cant say.).
