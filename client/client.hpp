@@ -11,7 +11,8 @@
 #ifdef _WIN32
     #include <conio.h>
 #else
-    #include <linux_kbhit.h>
+    #include <Kbhit.h>
+    #define _kbhit kbhit
 #endif
 
 using namespace RakNet;
