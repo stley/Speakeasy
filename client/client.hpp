@@ -7,6 +7,7 @@
 #include <rakChat.h>
 #include "voice.hpp"
 #include "device.hpp"
+#include <atomic>
 
 using namespace RakNet;
 
