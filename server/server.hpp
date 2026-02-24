@@ -2,6 +2,7 @@
 #include <thread>
 #include <vector>
 #include <map>
+#include <atomic>
 
 #define RKC_MAX_CLIENTS (10)
 
