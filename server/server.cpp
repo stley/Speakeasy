@@ -59,7 +59,7 @@ void RakChatServer::HandlePacket(Packet *packet)
             {
                 
                 response.Write((RakNet::MessageID)ID_REGISTER_ME);
-                response.Write('O');
+                response.Write((unsigned char)'O');
                 peer->Send(&response, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
             }
             else
@@ -68,16 +68,20 @@ void RakChatServer::HandlePacket(Packet *packet)
                 theUser.userAddr = packet->systemAddress;
                 theUser.userGUID = packet->guid;
                 theUser.Name = name.C_String();
-                connectionList_.emplace(packet->guid, theUser);
+                {
+                    std::lock_guard<std::mutex> lock(listMutex);
+                    connectionList_.emplace(packet->guid, theUser);
+                }
+                
                 response.Write((RakNet::MessageID)ID_REGISTER_ME);
-                response.Write('Y');
+                response.Write((unsigned char)'Y');
                 peer->Send(&response, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
                 BitStream announce = BitStream();
                 announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
                 std::string system_message = "\033[33m[SYSTEM]\033[37m ";
                 system_message+= name.C_String();
                 system_message+= "\033[32m connected to the server.\033[37m\n";
-                announce.Write(system_message.c_str());
+                announce.Write(RakString(system_message.c_str()));
                 peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
             }
         }
@@ -95,11 +99,14 @@ void RakChatServer::HandlePacket(Packet *packet)
                 BitStream announce = BitStream();
                 announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
                 std::string system_message = "\033[33m[SYSTEM]\033[37m ";
-                for (const auto& [guid, user] : connectionList_)
                 {
-                    if (user.userGUID == packet->guid)
+                    std::lock_guard<std::mutex> lock(listMutex);
+                    for (const auto& [guid, user] : connectionList_)
                     {
-                        system_message += user.Name.c_str();
+                        if (user.userGUID == packet->guid)
+                        {
+                            system_message += user.Name.c_str();
+                        }
                     }
                 }
                 system_message += "\033[31m disconnected from the server.\033[37m\n";
@@ -116,11 +123,14 @@ void RakChatServer::HandlePacket(Packet *packet)
             BitStream announce = BitStream();
             announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
             std::string system_message = "\033[33m[SYSTEM]\033[37m ";
-            for (const auto& [guid, user] : connectionList_)
             {
-                if(user.userGUID == packet->guid)
+                std::lock_guard<std::mutex> lock(listMutex);
+                for (const auto& [guid, user] : connectionList_)
                 {
-                    system_message+=user.Name.c_str();
+                    if(user.userGUID == packet->guid)
+                    {
+                        system_message+=user.Name.c_str();
+                    }
                 }
             }
             system_message+= "\033[31m lost connection to the server.\033[37m\n";
@@ -138,11 +148,14 @@ void RakChatServer::HandlePacket(Packet *packet)
             bsIn.Read(message);
             BitStream bsOut = BitStream();
             bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-            for (const auto& [guid, user] : connectionList_)
             {
-                if(user.userGUID == packet->guid)
+                std::lock_guard<std::mutex> lock(listMutex);
+                for (const auto& [guid, user] : connectionList_)
                 {
-                    bsOut.Write(user.Name.c_str());
+                    if(user.userGUID == packet->guid)
+                    {
+                        bsOut.Write(user.Name.c_str());
+                    }
                 }
             }
             

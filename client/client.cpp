@@ -28,55 +28,74 @@ void RakChatClient::ClientThread()
     //printf("Packet thread: It's on! :)\n");
     while(running_)
     {
+        try{
         for (packet=peer->Receive(); packet; peer->DeallocatePacket(packet), packet=peer->Receive())
 		{
 			switch (packet->data[0])
 			{
                 case ID_REGISTER_ME:
+                {
+                    BitStream bs = BitStream(packet->data, packet->length, false);
+                    bs.IgnoreBytes(sizeof(RakNet::MessageID));
+                    unsigned char result;
+                    bs.Read(result);
+                    if (result == 'Y')
                     {
-                        BitStream bs = BitStream(packet->data, packet->length, false);
-                        bs.IgnoreBytes(sizeof(RakNet::MessageID));
-                        unsigned char result;
-                        bs.Read(result);
-                        if (result == 'Y')
-                        {
-                            printf("You registered as %s.", config_.userName.c_str());
-                            printf(" Now you can send messages.\n");
-                            voiceEngine = new SpeakeasyEngine(peer);
-                            portDevice = voiceEngine->GetDevice();
-                            
-                            std::cout << "Stream is Active: " << portDevice->State() << "\n";
-                            this->connected_ = true;
-                        }
-                        else if (result == 'O')
-                        {
-                            printf("Registration failed because name is in use.\n");
-                            _init_ = true;
-                            return;
-                        }
-                        else
-                        {
-                            printf("Registration failed.");
-                            _init_ = true;
-                            return;
-                        }
+                        printf("You registered as %s.", config_.userName.c_str());
+                        printf(" Now you can send messages.\n");
+                        voiceEngine = new SpeakeasyEngine(peer);
+                        portDevice = voiceEngine->GetDevice();
                         
+                        //std::cout << "Stream is Active: " << portDevice->State() << "\n";
+                        this->connected_ = true;
                     }
-                        break;
-                case ID_CONNECTION_REQUEST_ACCEPTED:
-				    {
-				    	printf("You are connected! Registering you...\n");
+                    else if (result == 'O')
+                    {
+                        printf("Registration failed because name is in use.\n");
+                        _init_ = true;
+                        return;
+                    }
+                    else
+                    {
+                        printf("Registration failed.");
+                        _init_ = true;
+                        return;
+                    }
+                    break;
+                }
                         
-                        BitStream bs = BitStream();
-                        bs.Write((RakNet::MessageID)ID_REGISTER_ME);
-                        bs.Write(config_.userName.c_str());
-                        peer->Send(&bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
-				    }
-				    break;
+                case ID_CONNECTION_REQUEST_ACCEPTED:
+				{
+					printf("You are connected! Registering you...\n");
+                    
+                    BitStream bs = BitStream();
+                    bs.Write((RakNet::MessageID)ID_REGISTER_ME);
+                    bs.Write(config_.userName.c_str());
+                    peer->Send(&bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
+                    break;
+				}
 
                 case ID_CONNECTION_LOST:
-				    printf("Connection lost.\n");
-				    break;
+                {
+                    printf("Connection lost.\n");
+                    _init_ = true;
+                    return;
+                }
+
+				case ID_CONNECTION_ATTEMPT_FAILED:
+                {
+                    printf("Failed to connect to server.");
+                    _init_ = true;
+                    return;
+                }
+
+                case ID_DISCONNECTION_NOTIFICATION:
+                {
+                    printf("Connection dropped, probably by the server.");
+                    _init_ = true;
+                    return;
+                }
+                    
 
                 case ID_CHAT_MESSAGE:
                 {
@@ -94,9 +113,9 @@ void RakChatClient::ClientThread()
                         std::lock_guard<std::mutex> lock(queueMutex);
                         MessageQueue.push(message);
                     }
-                }
                     break;
-
+                }
+            
                 case ID_SYSTEM_MESSAGE:
                 {
                     RakString rs_msg;
@@ -110,12 +129,15 @@ void RakChatClient::ClientThread()
                         std::lock_guard<std::mutex> lock(queueMutex);
                         MessageQueue.push(message);
                     }
-                }
                     break;
-                    
+                }
+            
                 case ID_NO_FREE_INCOMING_CONNECTIONS:
-    		        printf("The server is full.\n");
+                {
+                    printf("The server is full.\n");
 			        break;
+                }
+    		        
                 case ID_VOICE_DATA:
                 {
                     BitStream bsIn = BitStream(packet->data, packet->length, false);
@@ -128,9 +150,14 @@ void RakChatClient::ClientThread()
                     bsIn.Read(reinterpret_cast<char*>(buf), size);
                     if(voiceEngine)
                         voiceEngine->OnNetworkVoice(gid, buf, size);
-                }
                     break;
+                }
             }
+        }
+        }
+        catch(...)
+        {
+            printf("Exception caught!");
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }

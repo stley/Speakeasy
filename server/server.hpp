@@ -2,6 +2,7 @@
 #include <thread>
 #include <vector>
 #include <map>
+#include <mutex>
 #include <atomic>
 
 #define RKC_MAX_CLIENTS (10)
@@ -28,9 +29,12 @@ private:
     SocketDescriptor sd;
     std::thread workerThread;
     std::atomic<bool> isServerRunning = false;
-    RakNet::Packet *packet;
 
+    
+    RakNet::Packet *packet;
+    
     std::map<RakNet::RakNetGUID, RakChatUser> connectionList_;
+    std::mutex listMutex;
 
     void MainThread();
 
