@@ -25,6 +25,7 @@ struct RemoteVoice
     RCDecoder decoder;
     std::queue<std::array<int16_t, DEFAULT_FRAMES_PER_BUFFER>> jitter;
     bool started = false;
+    float speakerVolume = 1.0f;
 };
 
 using namespace RakNet;
@@ -42,6 +43,7 @@ public:
     void MixOutput(int16_t* out);
     
 private:
+    
     std::queue<VoiceBuffer> captureQueue;
     std::mutex captureMutex;
 
@@ -58,6 +60,8 @@ private:
     RCEncoder encoder_;
 
     std::map<uint64_t, RemoteVoice> RemoteSpeakers;
+
+    float masterVolume = 1.0f;
 };
 
 

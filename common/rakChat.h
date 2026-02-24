@@ -20,6 +20,3 @@ enum GameMessages
     ID_CHAT_MESSAGE,
     ID_VOICE_DATA
 };
-
-
-

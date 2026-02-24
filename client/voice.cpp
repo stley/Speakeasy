@@ -29,7 +29,6 @@ void SpeakeasyEngine::OnAudioInput(int16_t* pcm, unsigned long frameCount)
 {
     if(frameCount != DEFAULT_FRAMES_PER_BUFFER) return;
 
-
     {
         std::lock_guard<std::mutex> lock(captureMutex);
         VoiceBuffer toPush;
@@ -84,23 +83,34 @@ void SpeakeasyEngine::OnNetworkVoice(uint64_t id, uint8_t* data, uint16_t size)
     {
         std::lock_guard<std::mutex> lock(voicesMutex);
         auto it = RemoteSpeakers.find(id);
-
         if (it == RemoteSpeakers.end())
         {
             RemoteVoice rv;
             rv.decoder.Initialize(DEFAULT_SAMPLE_RATE, 1);
                 RemoteSpeakers.emplace(id, std::move(rv));
-
             it = RemoteSpeakers.find(id);
         }
-            RemoteVoice& rV = it->second;
-
-            std::array<int16_t, DEFAULT_FRAMES_PER_BUFFER> pcm;
-
-            int samples = rV.decoder.Decode(data, size, pcm.data(), DEFAULT_FRAMES_PER_BUFFER);
-
-        if(samples == DEFAULT_FRAMES_PER_BUFFER)
+        RemoteVoice& rV = it->second;
+        std::array<int16_t, DEFAULT_FRAMES_PER_BUFFER> pcm;
+        int samples = rV.decoder.Decode(data, size, pcm.data(), DEFAULT_FRAMES_PER_BUFFER);
+        if (rV.speakerVolume != 1.0f)
         {
+            for (int i = 0; i < samples; i++)
+            {    
+                float scaled = pcm[i] * rV.speakerVolume;
+                pcm[i] = static_cast<int16_t>(std::clamp(scaled, -32768.0f, 32767.0f));
+            }
+        }
+        else if (masterVolume != 1.0f)
+        {
+            for (int i = 0; i < samples; i++)
+            {    
+                float scaled = pcm[i] * rV.speakerVolume;
+                pcm[i] = static_cast<int16_t>(std::clamp(scaled, -32768.0f, 32767.0f));
+            }
+        }
+        if (samples == DEFAULT_FRAMES_PER_BUFFER)
+        {    
             rV.jitter.push(pcm);
         }
     }
@@ -115,9 +125,9 @@ void SpeakeasyEngine::MixOutput(int16_t* out)
         {
             if (!voice.jitter.empty())
             {
-                if(!voice.started)
+                if (!voice.started)
                 {
-                    if(voice.jitter.size() >= 3)
+                    if (voice.jitter.size() >= 3)
                     {
                         voice.started = true;
                     }

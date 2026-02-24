@@ -3,11 +3,16 @@
 #include <string>
 #include <queue>
 #include <mutex>
-#include <conio.h>
 #include <rakChat.h>
 #include "voice.hpp"
 #include "device.hpp"
 #include <atomic>
+
+#ifdef _WIN32
+    #include <conio.h>
+#else
+    #include <linux_kbhit.h>
+#endif
 
 using namespace RakNet;
 
@@ -42,16 +47,14 @@ private:
     std::mutex queueMutex;
 
     //Voice
-    SpeakeasyEngine* voiceEngine;
-    AudioDevice* portDevice;
+    SpeakeasyEngine* voiceEngine = nullptr;
 
     void ClientThread();
     
-    void ProcessSlashCommand(const char* input);
+    void ProcessSlashCommand(std::string& cmdtext);
 
 public:
     RakChatClient();
     ~RakChatClient();
     void ClientMain();
-    RakPeerInterface* GetPeer() { return peer; }
 };

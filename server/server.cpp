@@ -186,10 +186,8 @@ void RakChatServer::HandlePacket(Packet *packet)
                 bsOut.Write(len);
                 bsOut.Write(reinterpret_cast<const char*>(__data), (uint16_t)len);
                 peer->Send(&bsOut, HIGH_PRIORITY, UNRELIABLE_SEQUENCED, 1, packet->systemAddress, true);
-            }
-            
+            }   
         }
-
     }
 }
 
