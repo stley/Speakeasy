@@ -12,6 +12,13 @@ file(GLOB RAKNET_SOURCES
 
 add_library(raknet STATIC ${RAKNET_SOURCES})
 
+set(PA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(opus)
+add_subdirectory(portaudio)
+
 target_include_directories(raknet PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source
     ${CMAKE_CURRENT_SOURCE_DIR}/common
@@ -27,9 +34,24 @@ if (WIN32)
 endif()
 
 # --- Server ---
-add_executable(chat_server server/server.cpp)
-target_link_libraries(chat_server PRIVATE raknet)
+add_executable(chat_server 
+    server/server.cpp
+)
+target_link_libraries(chat_server PRIVATE
+    raknet
+    portaudio
+    opus)
 
 # --- Client ---
-add_executable(chat_client client/client.cpp)
-target_link_libraries(chat_client PRIVATE raknet)
+add_executable(chat_client 
+    client/client.cpp
+    client/device.cpp
+    client/encode.cpp
+    client/voice.cpp
+)
+target_link_libraries(chat_client PRIVATE
+    raknet
+    portaudio
+    opus
+)
+

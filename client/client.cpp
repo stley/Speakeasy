@@ -7,6 +7,7 @@ RakChatClient::RakChatClient()
     peer = RakNet::RakPeerInterface::GetInstance();
     peer->Startup(1, &sd, 1);
     printf("RakChat Client started.\n");
+    
 }
 RakChatClient::~RakChatClient()
 {
@@ -41,6 +42,10 @@ void RakChatClient::ClientThread()
                         {
                             printf("You registered as %s.", config_.userName.c_str());
                             printf(" Now you can send messages.\n");
+                            voiceEngine = new SpeakeasyEngine(peer);
+                            portDevice = voiceEngine->GetDevice();
+                            
+                            std::cout << "Stream is Active: " << portDevice->State() << "\n";
                             this->connected_ = true;
                         }
                         else if (result == 'O')
@@ -111,6 +116,20 @@ void RakChatClient::ClientThread()
                 case ID_NO_FREE_INCOMING_CONNECTIONS:
     		        printf("The server is full.\n");
 			        break;
+                case ID_VOICE_DATA:
+                {
+                    BitStream bsIn = BitStream(packet->data, packet->length, false);
+                    uint64_t gid;
+                    uint16_t size;
+                    bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
+                    bsIn.Read(gid);
+                    bsIn.Read(size);
+                    uint8_t buf[512];
+                    bsIn.Read(reinterpret_cast<char*>(buf), size);
+                    if(voiceEngine)
+                        voiceEngine->OnNetworkVoice(gid, buf, size);
+                }
+                    break;
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -129,8 +148,25 @@ void RakChatClient::ProcessSlashCommand(const char* input)
         _init_ = true;
         running_ = false;
         connected_ = false;
+        voiceEngine->Shutdown();
         peer->Shutdown(300);
+        
         //peer->Shutdown(0);
+    }
+    else if(strcmp(input, "/deaf") == 0)
+    {
+        bool state = portDevice->Deaf();
+        printf("%s\n", (state) ? "Deafen." : "Undeafen.");
+    }
+    else if(strcmp(input, "/mute") == 0)
+    {
+        bool state = portDevice->Mute();
+        printf("%s\n", (state) ? "Muted." : "Unmuted.");
+    }
+    else if (strcmp(input, "/loopback") == 0)
+    {
+        bool state = portDevice->ToggleLoopback();
+        printf("%s\n", (state) ? "Now you can hear yourself." : "Now you can't hear yourself.");
     }
 }
 
@@ -191,7 +227,7 @@ void RakChatClient::ClientMain()
     std::cout << "> " << std::flush;
     while (connected_) 
     { 
-    
+        //std::cout << "Callback count: " << portDevice->Count() << "\n";
         std::queue<ChatMessage> localQueue;
 
         {
@@ -266,3 +302,5 @@ int main()
     }
     return 0;
 }
+
+

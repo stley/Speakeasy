@@ -37,7 +37,7 @@ bool RakChatServer::isGuidRegistered(RakNetGUID guid_)
 {
     for (const auto& [guid, user] : connectionList_)
     {
-        if(user.userGUID == guid_);
+        if(user.userGUID == guid_)
             return true;
     }
     return false;
@@ -155,6 +155,28 @@ void RakChatServer::HandlePacket(Packet *packet)
         case ID_NO_FREE_INCOMING_CONNECTIONS:
 		    printf("The server is full.\n");
 			break;
+
+        case ID_VOICE_DATA:
+        {
+            uint16_t len = 0;
+            BitStream bsIn = BitStream(packet->data, packet->length, false);
+            bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
+            bsIn.Read(len);
+            if(len)
+            {
+                uint8_t __data[512];
+                bsIn.Read(reinterpret_cast<char*>(__data), static_cast<unsigned int>(len));
+
+                BitStream bsOut = BitStream();
+                bsOut.Write((RakNet::MessageID)ID_VOICE_DATA);
+                bsOut.Write(packet->guid.g);
+                bsOut.Write(len);
+                bsOut.Write(reinterpret_cast<const char*>(__data), (uint16_t)len);
+                peer->Send(&bsOut, HIGH_PRIORITY, UNRELIABLE_SEQUENCED, 1, packet->systemAddress, true);
+            }
+            
+        }
+
     }
 }
 

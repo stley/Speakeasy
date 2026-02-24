@@ -4,8 +4,9 @@
 #include <queue>
 #include <mutex>
 #include <conio.h>
-
 #include <rakChat.h>
+#include "voice.hpp"
+#include "device.hpp"
 
 using namespace RakNet;
 
@@ -25,6 +26,7 @@ struct ChatMessage
 
 
 
+
 class RakChatClient
 {
 private:
@@ -38,6 +40,9 @@ private:
     std::queue<ChatMessage> MessageQueue;
     std::mutex queueMutex;
 
+    //Voice
+    SpeakeasyEngine* voiceEngine;
+    AudioDevice* portDevice;
 
     void ClientThread();
     
@@ -47,4 +52,5 @@ public:
     RakChatClient();
     ~RakChatClient();
     void ClientMain();
+    RakPeerInterface* GetPeer() { return peer; }
 };
