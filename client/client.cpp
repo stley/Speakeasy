@@ -1,4 +1,6 @@
 #include "client.hpp"
+#include <algorithm>
+#include <sstream>
 
 std::atomic<bool> _init_{ true };
 
@@ -43,7 +45,7 @@ void RakChatClient::ClientThread()
                         printf("You registered as %s.", config_.userName.c_str());
                         printf(" Now you can send messages.\n");
                         voiceEngine = new SpeakeasyEngine(peer);
-                        
+                        if (voiceEngine)
                         //std::cout << "Stream is Active: " << voiceEngine->GetDevice()->State() << "\n";
                         this->connected_ = true;
                     }
@@ -138,6 +140,12 @@ void RakChatClient::ClientThread()
     		        
                 case ID_VOICE_DATA:
                 {
+                    if(voiceEngine)
+                    {
+                        if (voiceEngine->GetState() != ENGINE_OK)
+                            break;
+                    }
+                    else break;
                     BitStream bsIn = BitStream(packet->data, packet->length, false);
                     uint64_t gid;
                     uint16_t size;
@@ -156,8 +164,7 @@ void RakChatClient::ClientThread()
                     }
                     uint8_t buf[512];
                     bsIn.Read(reinterpret_cast<char*>(buf), size);
-                    if(voiceEngine)
-                        voiceEngine->OnNetworkVoice(gid, buf, size);
+                    voiceEngine->OnNetworkVoice(gid, buf, size);
                     break;
                 }
             }
@@ -178,11 +185,16 @@ void RakChatClient::ProcessSlashCommand(std::string& cmdtext)
         _init_ = true;
         running_ = false;
         connected_ = false;
-        voiceEngine->Shutdown();
+        if (voiceEngine)
+            voiceEngine->Shutdown();
         peer->Shutdown(300);
         
         //peer->Shutdown(0);
     }
+
+    if(!voiceEngine)
+        return;
+
     else if(cmdtext.find("/deaf") == 0)
     {
         bool state = voiceEngine->GetDevice()->Deaf();
@@ -198,6 +210,37 @@ void RakChatClient::ProcessSlashCommand(std::string& cmdtext)
         bool state = voiceEngine->GetDevice()->ToggleLoopback();
         printf("%s\n", (state) ? "Now you can hear yourself." : "Now you can't hear yourself.");
     }
+    else if (cmdtext.find("/mastervolume") == 0)
+    {
+        std::istringstream iss(cmdtext);
+
+        std::string command;
+        std::string valueStr;
+
+        iss >> command >> valueStr;
+
+        if (valueStr.empty())
+        {
+            std::cout << "Usage: /mastervolume <0.0 - 100.0> | Current Volume: " << (voiceEngine->GetMasterVolume()*100.f) << "\n";
+            return;
+        }
+
+        char* endPtr = nullptr;
+
+        float volume = std::strtof(valueStr.c_str(), &endPtr);
+
+        if (endPtr == valueStr.c_str())
+        {
+            std::cout << "Invalid number.\n";
+        }
+
+        volume = std::clamp(volume, 0.0f, 100.0f);
+
+        voiceEngine->SetMasterVolume(volume);
+
+        std::cout << "Master volume set to " << volume << "\n";
+    }
+
 
     else
         printf("Unknown command. Use /help for a list of commands.\n");

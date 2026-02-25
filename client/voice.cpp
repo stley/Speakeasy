@@ -9,11 +9,16 @@ using namespace RakNet;
 SpeakeasyEngine::SpeakeasyEngine(RakPeerInterface* p)
 {
     peer = p;
-    device_.Initialize(this);
-    device_.Start();
-    encoder_.Initialize(DEFAULT_SAMPLE_RATE, 1);
-    running_ = true;
-    spkThr = std::thread(&SpeakeasyEngine::spkThread, this);
+    bool success = device_.Initialize(this);
+    if (success)
+    {
+        engineState = ENGINE_OK;
+        device_.Start();
+        encoder_.Initialize(DEFAULT_SAMPLE_RATE, 1);
+        running_ = true;
+        spkThr = std::thread(&SpeakeasyEngine::spkThread, this);
+    }
+    else engineState = ENGINE_ERROR;
 }
 SpeakeasyEngine::~SpeakeasyEngine()
 {
@@ -25,9 +30,14 @@ AudioDevice* SpeakeasyEngine::GetDevice()
     return &device_;
 }
 
+void SpeakeasyEngine::SetMasterVolume(float value)
+{ 
+    masterVolume = value / 100.0f;
+}
+
 void SpeakeasyEngine::OnAudioInput(int16_t* pcm, unsigned long frameCount)
 {
-    if(frameCount != DEFAULT_FRAMES_PER_BUFFER) return;
+    if (frameCount != DEFAULT_FRAMES_PER_BUFFER) return;
 
     {
         std::lock_guard<std::mutex> lock(captureMutex);
@@ -93,19 +103,19 @@ void SpeakeasyEngine::OnNetworkVoice(uint64_t id, uint8_t* data, uint16_t size)
         RemoteVoice& rV = it->second;
         std::array<int16_t, DEFAULT_FRAMES_PER_BUFFER> pcm;
         int samples = rV.decoder.Decode(data, size, pcm.data(), DEFAULT_FRAMES_PER_BUFFER);
-        if (rV.speakerVolume != 1.0f)
+        /*if (rV.speakerVolume != 1.0f)
         {
             for (int i = 0; i < samples; i++)
             {    
                 float scaled = pcm[i] * rV.speakerVolume;
                 pcm[i] = static_cast<int16_t>(std::clamp(scaled, -32768.0f, 32767.0f));
             }
-        }
-        else if (masterVolume != 1.0f)
+        }*/
+        if (masterVolume != 1.0f)
         {
             for (int i = 0; i < samples; i++)
             {    
-                float scaled = pcm[i] * rV.speakerVolume;
+                float scaled = pcm[i] * masterVolume;
                 pcm[i] = static_cast<int16_t>(std::clamp(scaled, -32768.0f, 32767.0f));
             }
         }

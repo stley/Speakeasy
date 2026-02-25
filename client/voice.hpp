@@ -30,6 +30,13 @@ struct RemoteVoice
 
 using namespace RakNet;
 
+enum EngineStates
+{
+    ENGINE_NONE = 0x00,
+    ENGINE_ERROR,
+    ENGINE_OK
+};
+
 class SpeakeasyEngine
 {
 public:
@@ -41,7 +48,9 @@ public:
     void spkThread();
     AudioDevice* GetDevice();
     void MixOutput(int16_t* out);
-    
+    void SetMasterVolume(float value);
+    float GetMasterVolume() { return masterVolume; }
+    uint8_t GetState() { return engineState; }
 private:
     
     std::queue<VoiceBuffer> captureQueue;
@@ -59,9 +68,11 @@ private:
     AudioDevice device_;
     RCEncoder encoder_;
 
+    uint8_t engineState = ENGINE_NONE;
+
     std::map<uint64_t, RemoteVoice> RemoteSpeakers;
 
-    float masterVolume = 1.0f;
+    float masterVolume = 0.5f;
 };
 
 
