@@ -88,7 +88,7 @@ void SpeakeasyEngine::Shutdown()
         spkThr.join();
 }
 
-void SpeakeasyEngine::OnNetworkVoice(uint64_t id, uint8_t* data, uint16_t size)
+void SpeakeasyEngine::OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size)
 {
     {
         std::lock_guard<std::mutex> lock(voicesMutex);

@@ -44,7 +44,7 @@ public:
     ~SpeakeasyEngine();
     void Shutdown();
     void OnAudioInput(int16_t* pcm, unsigned long frameCount);
-    void OnNetworkVoice(uint64_t id, uint8_t* data, uint16_t size);
+    void OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size);
     void spkThread();
     AudioDevice* GetDevice();
     void MixOutput(int16_t* out);
@@ -70,7 +70,7 @@ private:
 
     uint8_t engineState = ENGINE_NONE;
 
-    std::map<uint64_t, RemoteVoice> RemoteSpeakers;
+    std::map<uint16_t, RemoteVoice> RemoteSpeakers;
 
     float masterVolume = 0.5f;
 };

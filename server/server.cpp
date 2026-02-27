@@ -23,23 +23,17 @@ RakChatServer::~RakChatServer()
 }
 
 
-bool RakChatServer::isNameAvailable(const char* name)
-{
-    for (const auto& [guid, user] : connectionList_)
-    {
-        if(strcmp(user.Name.c_str(), name) == 0)
-            return false;
-    }
+bool RakChatServer::isNameAvailable(const char* name, size_t len)
+{   
+    std::string getName(name, len);
+    if (userPool.get(getName) != nullptr) return false;
     return true;
 }
 
 bool RakChatServer::isGuidRegistered(RakNetGUID guid_)
 {
-    for (const auto& [guid, user] : connectionList_)
-    {
-        if(user.userGUID == guid_)
-            return true;
-    }
+    RakChatUser* usr = userPool.get(guid_);
+    if (usr != nullptr) return true;
     return false;
 }
 
@@ -55,7 +49,7 @@ void RakChatServer::HandlePacket(Packet *packet)
             RakString name;
             reg_bs.Read(name);
             BitStream response = BitStream();
-            if(!isNameAvailable(name.C_String()))
+            if(!isNameAvailable(name.C_String(), name.GetLength()))
             {
                 
                 response.Write((RakNet::MessageID)ID_REGISTER_ME);
@@ -68,17 +62,18 @@ void RakChatServer::HandlePacket(Packet *packet)
                 theUser.userAddr = packet->systemAddress;
                 theUser.userGUID = packet->guid;
                 theUser.Name = name.C_String();
-                {
-                    std::lock_guard<std::mutex> lock(listMutex);
-                    connectionList_.emplace(packet->guid, theUser);
-                }
+                uint16_t newId = userPool.insert(theUser);
                 
                 response.Write((RakNet::MessageID)ID_REGISTER_ME);
                 response.Write((unsigned char)'Y');
+                response.Write(newId);
                 peer->Send(&response, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false);
                 BitStream announce = BitStream();
                 announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
                 std::string system_message = "\033[33m[SYSTEM]\033[37m ";
+                char buf[9];
+                std::sprintf(buf, "(%d) ", newId);
+                system_message+= buf;
                 system_message+= name.C_String();
                 system_message+= "\033[32m connected to the server.\033[37m\n";
                 announce.Write(RakString(system_message.c_str()));
@@ -94,25 +89,17 @@ void RakChatServer::HandlePacket(Packet *packet)
 		case ID_DISCONNECTION_NOTIFICATION:
         {
             printf("A client has disconnected.\n");
-            if (isGuidRegistered(packet->guid))
+            RakChatUser* user = userPool.get(packet->guid);
+            if (user != nullptr)
             {
                 BitStream announce = BitStream();
                 announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
                 std::string system_message = "\033[33m[SYSTEM]\033[37m ";
-                {
-                    std::lock_guard<std::mutex> lock(listMutex);
-                    for (const auto& [guid, user] : connectionList_)
-                    {
-                        if (user.userGUID == packet->guid)
-                        {
-                            system_message += user.Name.c_str();
-                        }
-                    }
-                }
+                system_message += user->Name.c_str();
                 system_message += "\033[31m disconnected from the server.\033[37m\n";
                 announce.Write(system_message.c_str());
                 peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
-                connectionList_.erase(packet->guid);
+                userPool.remove( userPool.getId(packet->guid) );
             }
         }
 			break;
@@ -120,23 +107,19 @@ void RakChatServer::HandlePacket(Packet *packet)
         {
 			printf("A client lost connection.\n");
             if (!isGuidRegistered(packet->guid)) break;
-            BitStream announce = BitStream();
-            announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
-            std::string system_message = "\033[33m[SYSTEM]\033[37m ";
+            
+            RakChatUser* user = userPool.get(packet->guid);
+            if (user != nullptr)
             {
-                std::lock_guard<std::mutex> lock(listMutex);
-                for (const auto& [guid, user] : connectionList_)
-                {
-                    if(user.userGUID == packet->guid)
-                    {
-                        system_message+=user.Name.c_str();
-                    }
-                }
-            }
-            system_message+= "\033[31m lost connection to the server.\033[37m\n";
-            announce.Write(system_message.c_str());
-            peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
-            connectionList_.erase(packet->guid);
+                BitStream announce = BitStream();
+                announce.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
+                std::string system_message = "\033[33m[SYSTEM]\033[37m ";
+                system_message+= user->Name.c_str();
+                system_message+= "\033[31m lost connection to the server.\033[37m\n";
+                announce.Write(system_message.c_str());
+                peer->Send(&announce, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
+                userPool.remove( userPool.getId(packet->guid) );
+            }  
         }
 			break;
         case ID_CHAT_MESSAGE:
@@ -148,17 +131,7 @@ void RakChatServer::HandlePacket(Packet *packet)
             bsIn.Read(message);
             BitStream bsOut = BitStream();
             bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-            {
-                std::lock_guard<std::mutex> lock(listMutex);
-                for (const auto& [guid, user] : connectionList_)
-                {
-                    if(user.userGUID == packet->guid)
-                    {
-                        bsOut.Write(user.Name.c_str());
-                    }
-                }
-            }
-            
+            bsOut.Write( userPool.getName(packet->guid).c_str() );            
             bsOut.Write(message);
 
             peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);

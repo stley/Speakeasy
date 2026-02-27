@@ -36,6 +36,7 @@ endif()
 # --- Server ---
 add_executable(chat_server 
     server/server.cpp
+    server/RakChatUser.cpp
 )
 target_link_libraries(chat_server PRIVATE
     raknet

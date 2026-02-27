@@ -147,10 +147,10 @@ void RakChatClient::ClientThread()
                     }
                     else break;
                     BitStream bsIn = BitStream(packet->data, packet->length, false);
-                    uint64_t gid;
+                    uint16_t userid;
                     uint16_t size;
                     bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
-                    if (!bsIn.Read(gid)) break;
+                    if (!bsIn.Read(userid)) break;
                     if (!bsIn.Read(size)) break;
                     if (size == 0 || size > 512)
                     {
@@ -164,7 +164,7 @@ void RakChatClient::ClientThread()
                     }
                     uint8_t buf[512];
                     bsIn.Read(reinterpret_cast<char*>(buf), size);
-                    voiceEngine->OnNetworkVoice(gid, buf, size);
+                    voiceEngine->OnNetworkVoice(userid, buf, size);
                     break;
                 }
             }

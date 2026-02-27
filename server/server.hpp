@@ -9,18 +9,9 @@
 
 #include <rakChat.h>
 #include "RakSleep.h"
+#include "RakChatUser.hpp"
 
 using namespace RakNet;
-
-
-struct RakChatUser
-{
-    std::string Name;
-    RakNet::SystemAddress userAddr;
-    RakNet::RakNetGUID userGUID;
-};
-
-
 
 class RakChatServer
 {
@@ -33,17 +24,18 @@ private:
     
     RakNet::Packet *packet;
     
-    std::map<RakNet::RakNetGUID, RakChatUser> connectionList_;
+    
     std::mutex listMutex;
 
     void MainThread();
 
     void HandlePacket(Packet *data);
 
-    bool isNameAvailable(const char* name);
+    bool isNameAvailable(const char* name, size_t len);
 
     bool isGuidRegistered(RakNetGUID guid_);
 
+    RakChatUserPool userPool;
 public:
 
     RakChatServer();
