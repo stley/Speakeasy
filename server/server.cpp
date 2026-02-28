@@ -131,7 +131,8 @@ void RakChatServer::HandlePacket(Packet *packet)
             bsIn.Read(message);
             BitStream bsOut = BitStream();
             bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-            bsOut.Write( userPool.getName(packet->guid).c_str() );            
+            RakString author(userPool.getName(packet->guid).c_str());
+            bsOut.Write(author);
             bsOut.Write(message);
 
             peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
