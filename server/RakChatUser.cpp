@@ -22,6 +22,8 @@ uint16_t RakChatUserPool::insert(const RakChatUser &user)
         id = nextId++;
     }
 
+    connectionList_.emplace(id, user);
+
     return 0;
 }
 
