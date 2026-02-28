@@ -10,12 +10,12 @@ RakChatUserPool::~RakChatUserPool()
 
 uint16_t RakChatUserPool::insert(const RakChatUser &user)
 {
-    uint16_t id;
+    uint16_t id = 0;
 
     if (!freeIds.empty())
     {
-        id = freeIds.back();
-        freeIds.pop_back();
+        id = freeIds.front();
+        freeIds.erase(freeIds.begin());
     }
     else
     {
@@ -24,15 +24,27 @@ uint16_t RakChatUserPool::insert(const RakChatUser &user)
 
     connectionList_.emplace(id, user);
 
-    return 0;
+    return id;
 }
 
 bool RakChatUserPool::remove(uint16_t userid)
 {
+    auto it = connectionList_.find(userid);
+
+    if (it != connectionList_.end())
+    {
+        connectionList_.erase(userid);
+        freeIds.push_back(userid);
+    }
     return false;
 }
 bool RakChatUserPool::exists(uint16_t userid)
-{
+{   
+    auto it = connectionList_.find(userid);
+
+    if (it != connectionList_.end())
+        return true;   
+
     return false;
 }
 uint16_t RakChatUserPool::getId(const RakNet::RakNetGUID &guid)
