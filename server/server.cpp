@@ -145,6 +145,7 @@ void RakChatServer::HandlePacket(Packet *packet)
 
         case ID_VOICE_DATA:
         {
+            if (!isGuidRegistered(packet->guid)) break;
             uint16_t len = 0;
             BitStream bsIn = BitStream(packet->data, packet->length, false);
             bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
@@ -156,7 +157,8 @@ void RakChatServer::HandlePacket(Packet *packet)
 
                 BitStream bsOut = BitStream();
                 bsOut.Write((RakNet::MessageID)ID_VOICE_DATA);
-                bsOut.Write(packet->guid.g);
+                uint16_t uID = userPool.getId(packet->guid);
+                bsOut.Write(uID);
                 bsOut.Write(len);
                 bsOut.Write(reinterpret_cast<const char*>(__data), (uint16_t)len);
                 peer->Send(&bsOut, HIGH_PRIORITY, UNRELIABLE_SEQUENCED, 1, packet->systemAddress, true);
