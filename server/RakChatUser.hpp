@@ -1,5 +1,6 @@
 #include "RakNetTypes.h"
 #include <unordered_map>
+#include <vector> 
 #include <string>
 
 struct RakChatUser
