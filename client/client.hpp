@@ -26,8 +26,16 @@ struct ConnectionConfig
     std::string userName;
 };
 
+enum MessageTypes
+{
+    SPK_MESSAGE_UNDEFINED = 0x00,
+    SPK_SYSTEM_MESSAGE,
+    SPK_CHAT_MESSAGE
+}
+
 struct ChatMessage
 {
+    uint8_t message_type = MESSAGE_UNDEFINED;
     std::string messageAuthor;
     std::string messageContent;
 };
@@ -47,6 +55,7 @@ private:
     std::atomic<bool> connected_ = false;
     std::queue<ChatMessage> MessageQueue;
     std::mutex queueMutex;
+    SystemAddress serverAddress = UNASSIGNED_SYSTEM_ADDRESS;
 
     //Voice
     SpeakeasyEngine* voiceEngine = nullptr;

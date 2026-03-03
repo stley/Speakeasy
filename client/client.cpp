@@ -68,10 +68,11 @@ void RakChatClient::ClientThread()
 				{
 					printf("You are connected! Registering you...\n");
                     
+                    serverAddress = peer->GetSystemAddressFromIndex(0);
                     BitStream bs = BitStream();
                     bs.Write((RakNet::MessageID)ID_REGISTER_ME);
                     bs.Write(config_.userName.c_str());
-                    peer->Send(&bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);
+                    peer->Send(&bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);
                     break;
 				}
 
@@ -106,6 +107,7 @@ void RakChatClient::ClientThread()
                     bsIn.Read(rs_author);
                     bsIn.Read(rs_msg);
                     ChatMessage message;
+                    message.message_type = SPK_CHAT_MESSAGE;
                     message.messageAuthor = rs_author.C_String();
                     message.messageContent = rs_msg.C_String();
 
@@ -123,6 +125,7 @@ void RakChatClient::ClientThread()
                     bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
                     bsIn.Read(rs_msg);
                     ChatMessage message;
+                    message.message_type = SPK_SYSTEM_MESSAGE;
                     message.messageAuthor = "\033[36m~";
                     message.messageContent = rs_msg.C_String();
                     {
@@ -241,7 +244,6 @@ void RakChatClient::ProcessSlashCommand(std::string& cmdtext)
         std::cout << "Master volume set to " << volume << "\n";
     }
 
-
     else
         printf("Unknown command. Use /help for a list of commands.\n");
 }
@@ -315,10 +317,23 @@ void RakChatClient::ClientMain()
             ChatMessage m = localQueue.front();
             std::cout << "\r\33[2K";
             localQueue.pop();
-            std::cout << m.messageAuthor << ": " 
-                << m.messageContent << "\n";
-                std::cout << "> " << writeBuffer << std::flush;
-            
+            switch (m.message_type)
+            {
+                case SPK_CHAT_MESSAGE:
+                {
+                    std::cout << m.messageAuthor << ": " 
+                        << m.messageContent << "\n";
+                        std::cout << "> " << writeBuffer << std::flush;
+                    break;
+                }
+                case SPK_SYSTEM_MESSAGE:
+                {
+                    std::cout << "SYSTEM — " 
+                        << m.messageContent << "\n";
+                        std::cout << "> " << writeBuffer << std::flush;
+                    break;
+                }
+            }    
         }
         
         if (_kbhit())
@@ -347,9 +362,8 @@ void RakChatClient::ClientMain()
                 {
                     BitStream bsOut = BitStream();
                     bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
-                    //bsOut.Write(config_.userName.c_str());
                     bsOut.Write(writeBuffer.c_str());
-                    peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, UNASSIGNED_SYSTEM_ADDRESS, true);    
+                    peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);    
                 }
                 writeBuffer.clear();
                 std::cout << "\r\33[2K> " << std::flush;
