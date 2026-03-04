@@ -26,16 +26,16 @@ struct ConnectionConfig
     std::string userName;
 };
 
-enum MessageTypes
+enum MessageTypes : uint8_t
 {
     SPK_MESSAGE_UNDEFINED = 0x00,
     SPK_SYSTEM_MESSAGE,
     SPK_CHAT_MESSAGE
-}
+};
 
 struct ChatMessage
 {
-    uint8_t message_type = MESSAGE_UNDEFINED;
+    uint8_t message_type = SPK_MESSAGE_UNDEFINED;
     std::string messageAuthor;
     std::string messageContent;
 };
