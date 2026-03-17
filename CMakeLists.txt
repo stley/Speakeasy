@@ -10,6 +10,12 @@ file(GLOB RAKNET_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source/*.cpp
 )
 
+file(GLOB MICROUI_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/microui/src/*.c
+)
+
+add_library(microui STATIC ${MICROUI_SOURCES})
+
 add_library(raknet STATIC ${RAKNET_SOURCES})
 
 set(PA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -21,8 +27,11 @@ add_subdirectory(portaudio)
 
 target_include_directories(raknet PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source
-    ${CMAKE_CURRENT_SOURCE_DIR}/common
 )
+target_include_directories(microui PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/microui/src    
+)
+
 
 # Some RakNet builds require this on Windows
 if (WIN32)
@@ -34,30 +43,51 @@ if (WIN32)
 endif()
 
 # --- Server ---
-add_executable(chat_server 
+add_executable(SpeakeasyServer
     server/server.cpp
+    server/RakChatChannel.cpp
     server/RakChatUser.cpp
+
 )
-target_link_libraries(chat_server PRIVATE
+target_link_libraries(SpeakeasyServer PRIVATE
     raknet
     portaudio
     opus)
 
 # --- Client ---
-add_executable(chat_client 
+add_executable(SpeakeasyClient
     client/client.cpp
     client/device.cpp
     client/encode.cpp
     client/voice.cpp
 )
-target_link_libraries(chat_client PRIVATE
+
+add_executable(SpeakeasyUI
+    client-ui/client.cpp
+    client-ui/device.cpp
+    client-ui/encode.cpp
+    client-ui/voice.cpp
+)
+
+target_link_libraries(SpeakeasyUI PRIVATE
+    raknet
+    portaudio
+    opus
+    microui
+)
+
+target_link_libraries(SpeakeasyClient PRIVATE
     raknet
     portaudio
     opus
 )
 
-target_include_directories(chat_client PRIVATE
+target_include_directories(SpeakeasyUI PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common)
 
-target_include_directories(chat_server PRIVATE
+target_include_directories(SpeakeasyClient PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common)
+
+target_include_directories(SpeakeasyServer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/common)
+
