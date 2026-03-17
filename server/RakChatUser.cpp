@@ -1,12 +1,9 @@
 #include "RakChatUser.hpp"
+#include "BitStream.h"
+#include "rakChat.h"
 
-RakChatUserPool::RakChatUserPool()
-{
-}
+using namespace RakNet;
 
-RakChatUserPool::~RakChatUserPool()
-{
-}
 
 uint16_t RakChatUserPool::insert(const RakChatUser &user)
 {
@@ -58,9 +55,9 @@ uint16_t RakChatUserPool::getId(const RakNet::RakNetGUID &guid)
     }
     return 0;
 }
-const std::string& RakChatUserPool::getName(const RakNet::RakNetGUID &guid)
+const std::string& RakChatUserPool::getName(const RakNet::RakNetGUID &guid) const
 {
-    std::string ret = "null";
+    static const std::string ret = "null";
     for (const auto& [id, user] : connectionList_)
     {
         if(user.userGUID == guid)
@@ -68,7 +65,9 @@ const std::string& RakChatUserPool::getName(const RakNet::RakNetGUID &guid)
             return user.Name;
         }
     }
+    return ret;
 }
+
 RakChatUser *RakChatUserPool::get(uint16_t userid)
 {
     auto it = connectionList_.find(userid);
@@ -110,4 +109,90 @@ RakChatUser *RakChatUserPool::get(const std::string& userName)
     }
 
     return nullptr;
+}
+
+const RakChatUser *RakChatUserPool::get(uint16_t userid) const
+{
+    auto it = connectionList_.find(userid);
+    if (it != connectionList_.end())
+    {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+const RakChatUser *RakChatUserPool::get(const RakNet::RakNetGUID& guid) const
+{
+    for (auto& [id, user] : connectionList_)
+    {
+        if (user.userGUID == guid)
+            return &user;
+    }
+
+    return nullptr;
+}
+
+const RakChatUser *RakChatUserPool::get(const RakNet::SystemAddress& systemAddress) const
+{
+    for (auto& [id, user] : connectionList_)
+    {
+        if(user.userAddr == systemAddress)
+            return &user;
+    }
+
+    return nullptr;
+}
+
+const RakChatUser *RakChatUserPool::get(const std::string& userName) const
+{
+    for (auto& [id, user] : connectionList_)
+    {
+        if(user.Name == userName)
+            return &user;
+    }
+
+    return nullptr;
+}
+
+
+void RakChatUserPool::BroadcastSystemMessage(const char* message, const RakNetGUID& exclude) const
+{
+    for (const auto& [id, user ] : connectionList_)
+    {
+        if (user.userGUID != exclude)
+            user.PushSystemMessage(message);
+    }
+}
+
+void RakChatUserPool::BroadcastBitStream(const BitStream* bs, const RakNetGUID& exclude) const
+{
+    for (const auto& [id, user ] : connectionList_)
+    {
+        if (user.userGUID != exclude)
+            user.SendBitStream(bs);
+    }
+}
+
+RakChatUser::RakChatUser(RakPeerInterface* peerInstance)
+{
+    peer = peerInstance;
+}
+
+void RakChatUser::SendBitStream(const BitStream* bs) const
+{
+    peer->Send(bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, this->userAddr, false);
+}
+void RakChatUser::SendBitStream(const BitStream* bs, PacketPriority priority, PacketReliability reliability, char orderingChannel, RakChatUser* exclude) const
+{
+    if (this->userGUID == exclude->userGUID) return;
+    peer->Send(bs, priority, reliability, orderingChannel, this->userAddr, false);
+}
+
+void RakChatUser::PushSystemMessage(const char* message) const
+{
+    BitStream bs = BitStream();
+    RakString msg(message);
+    bs.Write(static_cast<RakNet::MessageID>(ID_SYSTEM_MESSAGE));
+    bs.Write(msg);
+    peer->Send(&bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, this->userAddr, false);
 }

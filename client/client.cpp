@@ -2,10 +2,11 @@
 #include <algorithm>
 #include <sstream>
 
-std::atomic<bool> _init_{ true };
+std::atomic<bool> clientInit{ true };
 
 RakChatClient::RakChatClient()
 {
+    packet = nullptr;
     peer = RakNet::RakPeerInterface::GetInstance();
     peer->Startup(1, &sd, 1);
     printf("RakChat Client started.\n");
@@ -40,25 +41,25 @@ void RakChatClient::ClientThread()
                     bs.IgnoreBytes(sizeof(RakNet::MessageID));
                     unsigned char result;
                     bs.Read(result);
+                    uint16_t myId = 0;
+                    bs.Read(myId);
                     if (result == 'Y')
                     {
-                        printf("You registered as %s.", config_.userName.c_str());
+                        printf("You registered as %s (%d).", config_.userName.c_str(), myId);
                         printf(" Now you can send messages.\n");
                         voiceEngine = new SpeakeasyEngine(peer);
-                        if (voiceEngine)
-                        //std::cout << "Stream is Active: " << voiceEngine->GetDevice()->State() << "\n";
                         this->connected_ = true;
                     }
                     else if (result == 'O')
                     {
                         printf("Registration failed because name is in use.\n");
-                        _init_ = true;
+                        clientInit = true;
                         return;
                     }
                     else
                     {
                         printf("Registration failed.");
-                        _init_ = true;
+                        clientInit = true;
                         return;
                     }
                     break;
@@ -70,7 +71,7 @@ void RakChatClient::ClientThread()
                     
                     serverAddress = peer->GetSystemAddressFromIndex(0);
                     BitStream bs = BitStream();
-                    bs.Write((RakNet::MessageID)ID_REGISTER_ME);
+                    bs.Write(static_cast<RakNet::MessageID>(ID_REGISTER_ME));
                     bs.Write(config_.userName.c_str());
                     peer->Send(&bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);
                     break;
@@ -79,21 +80,21 @@ void RakChatClient::ClientThread()
                 case ID_CONNECTION_LOST:
                 {
                     printf("Connection lost.\n");
-                    _init_ = true;
+                    clientInit = true;
                     return;
                 }
 
 				case ID_CONNECTION_ATTEMPT_FAILED:
                 {
                     printf("Failed to connect to server.\n");
-                    _init_ = true;
+                    clientInit = true;
                     return;
                 }
 
                 case ID_DISCONNECTION_NOTIFICATION:
                 {
                     printf("Connection dropped, probably by the server.\n");
-                    _init_ = true;
+                    clientInit = true;
                     return;
                 }
                     
@@ -126,7 +127,7 @@ void RakChatClient::ClientThread()
                     bsIn.Read(rs_msg);
                     ChatMessage message;
                     message.message_type = SPK_SYSTEM_MESSAGE;
-                    message.messageAuthor = "\033[36m~";
+                    message.messageAuthor = "\033[33m[SYSTEM]\033[37m - ";
                     message.messageContent = rs_msg.C_String();
                     {
                         std::lock_guard<std::mutex> lock(queueMutex);
@@ -141,8 +142,7 @@ void RakChatClient::ClientThread()
 			        break;
                 }
     		        
-                case ID_VOICE_DATA:
-                {
+                case ID_VOICE_DATA: {
                     if(voiceEngine)
                     {
                         if (voiceEngine->GetState() != ENGINE_OK)
@@ -170,22 +170,26 @@ void RakChatClient::ClientThread()
                     voiceEngine->OnNetworkVoice(userid, buf, size);
                     break;
                 }
+			    default:
+			        break;
+
             }
         } 
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 }
 
-void RakChatClient::ProcessSlashCommand(std::string& cmdtext)
+void RakChatClient::ProcessSlashCommand(const std::string& cmdtext)
 {
     if(cmdtext.find("/myname") == 0)
     {
         std::cout << "You are registered as " << config_.userName << ".\n";
     }
+
     else if(cmdtext.find("/exit") == 0)
     {
         std::cout << "Disconnecting from server..." << "\n";
-        _init_ = true;
+        clientInit = true;
         running_ = false;
         connected_ = false;
         if (voiceEngine)
@@ -195,26 +199,30 @@ void RakChatClient::ProcessSlashCommand(std::string& cmdtext)
         //peer->Shutdown(0);
     }
 
-    if(!voiceEngine)
-        return;
-
     else if(cmdtext.find("/deaf") == 0)
     {
+        if(!voiceEngine) return;
         bool state = voiceEngine->GetDevice()->Deaf();
         printf("%s\n", (state) ? "Deafen." : "Undeafen.");
     }
+
     else if(cmdtext.find("/mute") == 0)
     {
+        if(!voiceEngine) return;
         bool state = voiceEngine->GetDevice()->Mute();
         printf("%s\n", (state) ? "Muted." : "Unmuted.");
     }
+
     else if (cmdtext.find("/loopback") == 0)
     {
+        if(!voiceEngine) return;
         bool state = voiceEngine->GetDevice()->ToggleLoopback();
         printf("%s\n", (state) ? "Now you can hear yourself." : "Now you can't hear yourself.");
     }
+
     else if (cmdtext.find("/mastervolume") == 0)
     {
+        if(!voiceEngine) return;
         std::istringstream iss(cmdtext);
 
         std::string command;
@@ -242,6 +250,55 @@ void RakChatClient::ProcessSlashCommand(std::string& cmdtext)
         voiceEngine->SetMasterVolume(volume);
 
         std::cout << "Master volume set to " << volume << "\n";
+    }
+
+    else if (cmdtext.find("/peerlist") == 0) 
+    {
+        BitStream bsQuery = BitStream();
+        bsQuery.Write(static_cast<RakNet::MessageID>(ID_QUERY));
+        bsQuery.Write( static_cast<unsigned char>('P') );
+        peer->Send(&bsQuery, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);    
+    }
+
+    else if (cmdtext.find("/channellist") == 0)
+    {
+        BitStream bsQuery = BitStream();
+
+        bsQuery.Write(static_cast<RakNet::MessageID>(ID_QUERY));
+        bsQuery.Write( static_cast<unsigned char>('C') );
+        peer->Send(&bsQuery, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);
+    }
+
+    else if (cmdtext.find("/joinchannel") == 0)
+    {
+        std::istringstream iss(cmdtext);
+
+        std::string command;
+        std::string valueStr;
+
+        iss >> command >> valueStr;
+
+        if (valueStr.empty())
+        {
+            std::cout << "Usage: /joinchannel <Channel ID>\n";
+            return;
+        }
+
+        char* endPtr = nullptr;
+
+        uint16_t IdToJoin = std::clamp(std::stoi(valueStr.c_str()), 0, 65535);
+
+        if (endPtr == valueStr.c_str())
+        {
+            std::cout << "Invalid channel ID.\n";
+        }
+
+        BitStream bsQuery = BitStream();
+
+        bsQuery.Write(static_cast<RakNet::MessageID>(ID_CHANNEL_ACTION));
+        bsQuery.Write( static_cast<unsigned char>('J') ); //FOR JOIN
+        bsQuery.Write( IdToJoin );
+        peer->Send(&bsQuery, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);
     }
 
     else
@@ -290,7 +347,7 @@ void RakChatClient::ClientMain()
     }
     printf("Done! We will patch you up to %s:%d, %s...\n", config_.serverIp.c_str(), config_.serverPort, config_.userName.c_str());
     
-    peer->Connect(config_.serverIp.c_str(), config_.serverPort, 0, 0);
+    peer->Connect(config_.serverIp.c_str(), config_.serverPort, nullptr, 0);
     running_ = true;
     workerThread = std::thread(&RakChatClient::ClientThread, this);
     
@@ -299,7 +356,7 @@ void RakChatClient::ClientMain()
 
     while (!connected_ && running_)
     {
-        if (_init_ == true) return;
+        if (clientInit == true) return;
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     std::cout << "> " << std::flush;
@@ -328,11 +385,14 @@ void RakChatClient::ClientMain()
                 }
                 case SPK_SYSTEM_MESSAGE:
                 {
-                    std::cout << "SYSTEM — " 
+                    std::cout
+                        << m.messageAuthor
                         << m.messageContent << "\n";
-                        std::cout << "> " << writeBuffer << std::flush;
+                    std::cout << "> " << writeBuffer << std::flush;
                     break;
                 }
+                default:
+                    break;
             }    
         }
         
@@ -361,7 +421,7 @@ void RakChatClient::ClientMain()
                 else
                 {
                     BitStream bsOut = BitStream();
-                    bsOut.Write((RakNet::MessageID)ID_CHAT_MESSAGE);
+                    bsOut.Write(static_cast<RakNet::MessageID>(ID_CHAT_MESSAGE));
                     bsOut.Write(writeBuffer.c_str());
                     peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);    
                 }
@@ -373,7 +433,7 @@ void RakChatClient::ClientMain()
                 if (writeBuffer.length() <= 144)
                 {
                     writeBuffer.push_back(ch);
-                std::cout << static_cast<char>(ch);
+                    std::cout << static_cast<char>(ch);
                 }
             }
 
@@ -386,9 +446,9 @@ void RakChatClient::ClientMain()
 int main()
 {
     
-    while (_init_)
+    while (clientInit)
     {
-        _init_ = false;
+        clientInit = false;
         RakChatClient theClient;
         theClient.ClientMain();
     }

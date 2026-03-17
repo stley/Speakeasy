@@ -62,7 +62,7 @@ private:
 
     void ClientThread();
     
-    void ProcessSlashCommand(std::string& cmdtext);
+    void ProcessSlashCommand(const std::string& cmdtext);
 
 public:
     RakChatClient();

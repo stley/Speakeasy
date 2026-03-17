@@ -10,6 +10,7 @@
 #include <rakChat.h>
 #include "RakSleep.h"
 #include "RakChatUser.hpp"
+#include "RakChatChannel.hpp"
 
 using namespace RakNet;
 
@@ -36,6 +37,8 @@ private:
     bool isGuidRegistered(RakNetGUID guid_);
 
     RakChatUserPool userPool;
+    ChannelPool channelPool;
+    RakChatChannel* rootPtr = nullptr;
 public:
 
     RakChatServer();

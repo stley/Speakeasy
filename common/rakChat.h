@@ -17,6 +17,13 @@ enum GameMessages
 {
     ID_SYSTEM_MESSAGE=ID_USER_PACKET_ENUM+1,
     ID_REGISTER_ME,
+    // + uchar 'Y' - registration successful.
+    // + uchar 'O' - Name in use - Registration failed.
+    // + uchar 'N' - Registration failed.
     ID_CHAT_MESSAGE,
-    ID_VOICE_DATA
+    ID_VOICE_DATA,
+    ID_QUERY,
+    // + uchar 'P' - peerlist
+    // // + uchar 'C' - channellist
+    ID_CHANNEL_ACTION
 };
