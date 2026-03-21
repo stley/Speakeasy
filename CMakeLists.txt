@@ -10,11 +10,6 @@ file(GLOB RAKNET_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source/*.cpp
 )
 
-file(GLOB MICROUI_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/microui/src/*.c
-)
-
-add_library(microui STATIC ${MICROUI_SOURCES})
 
 add_library(raknet STATIC ${RAKNET_SOURCES})
 
@@ -28,9 +23,7 @@ add_subdirectory(portaudio)
 target_include_directories(raknet PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source
 )
-target_include_directories(microui PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/microui/src    
-)
+
 
 
 # Some RakNet builds require this on Windows
@@ -52,7 +45,8 @@ add_executable(SpeakeasyServer
 target_link_libraries(SpeakeasyServer PRIVATE
     raknet
     portaudio
-    opus)
+    opus
+)
 
 # --- Client ---
 add_executable(SpeakeasyClient
@@ -73,7 +67,6 @@ target_link_libraries(SpeakeasyUI PRIVATE
     raknet
     portaudio
     opus
-    microui
 )
 
 target_link_libraries(SpeakeasyClient PRIVATE
