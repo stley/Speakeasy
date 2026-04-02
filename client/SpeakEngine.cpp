@@ -1,5 +1,5 @@
-#include "voice.hpp"
 #include <rakChat.h>
+#include "SpeakEngine.hpp"
 #include "BitStream.h"
 #include <algorithm>
 
@@ -88,7 +88,17 @@ void SpeakeasyEngine::Shutdown()
         spkThr.join();
 }
 
-void SpeakeasyEngine::OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size)
+RemoteVoice* SpeakeasyEngine::GetRemoteVoice(uint16_t id)
+{
+    
+    if (auto it = RemoteSpeakers.find(id); it != RemoteSpeakers.end())
+    {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+void SpeakeasyEngine::OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size, const char* fromName)
 {
     {
         std::lock_guard<std::mutex> lock(voicesMutex);
@@ -96,6 +106,7 @@ void SpeakeasyEngine::OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size)
         if (it == RemoteSpeakers.end())
         {
             RemoteVoice rv;
+            rv.rvUsername = fromName;
             rv.decoder.Initialize(DEFAULT_SAMPLE_RATE, 1);
                 RemoteSpeakers.emplace(id, std::move(rv));
             it = RemoteSpeakers.find(id);
@@ -103,14 +114,14 @@ void SpeakeasyEngine::OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size)
         RemoteVoice& rV = it->second;
         std::array<int16_t, DEFAULT_FRAMES_PER_BUFFER> pcm;
         int samples = rV.decoder.Decode(data, size, pcm.data(), DEFAULT_FRAMES_PER_BUFFER);
-        /*if (rV.speakerVolume != 1.0f)
+        if (rV.speakerVolume != 1.0f)
         {
             for (int i = 0; i < samples; i++)
             {    
                 float scaled = pcm[i] * rV.speakerVolume;
                 pcm[i] = static_cast<int16_t>(std::clamp(scaled, -32768.0f, 32767.0f));
             }
-        }*/
+        }
         if (masterVolume != 1.0f)
         {
             for (int i = 0; i < samples; i++)

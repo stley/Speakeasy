@@ -1,5 +1,6 @@
 #include "server.hpp"
-
+#include <algorithm>
+#include <sstream>
 
 
 RakChatServer::RakChatServer()
@@ -177,11 +178,21 @@ void RakChatServer::HandlePacket(Packet *packet)
                 uint8_t __data[512];
                 bsIn.Read(reinterpret_cast<char*>(__data), static_cast<unsigned int>(len));
 
+                /*
+                ID_VOICE_DATA
+                USER ID, UNSIGNED 16 BIT INT
+                LENGTH OF BUFFER
+                NAME OF SPEAKER
+                ACTUAL VOICE DATA
+                */
+
                 BitStream bsOut = BitStream();
                 bsOut.Write((RakNet::MessageID)ID_VOICE_DATA);
                 uint16_t uID = userPool.getId(packet->guid);
                 bsOut.Write(uID);
                 bsOut.Write(len);
+                RakString rsName(theUser->Name.c_str());
+                bsOut.Write( rsName );
                 bsOut.Write(reinterpret_cast<const char*>(__data), (uint16_t)len);
                 chan->Broadcast(&bsOut, HIGH_PRIORITY, UNRELIABLE_SEQUENCED, 1, theUser);
                 //peer->Send(&bsOut, HIGH_PRIORITY, UNRELIABLE_SEQUENCED, 1, packet->systemAddress, true);
@@ -191,6 +202,7 @@ void RakChatServer::HandlePacket(Packet *packet)
 
         case ID_QUERY:
         {
+            break;
             RakChatUser* theUser = userPool.get(packet->guid);
             if (!theUser)
                 break;
@@ -198,70 +210,92 @@ void RakChatServer::HandlePacket(Packet *packet)
             BitStream bsIn = BitStream(packet->data, packet->length, false);
             bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
             unsigned char result;
-            if (bsIn.Read(result) && result == 'P')
-            {
-                BitStream peerBS = BitStream();
-                peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
-                RakString rs = RakString("List of connected peers:");
-                peerBS.Write(rs);
-                theUser->SendBitStream(&peerBS);
-                
-                for (const auto& [ uid, chatUser ] : userPool.GetPeerList())
-                {
-                    peerBS.Reset();
-                    peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
-                    rs = RakString("(%d) - %s", uid, chatUser.Name.c_str());
-                    peerBS.Write(rs);
-                    theUser->SendBitStream(&peerBS);
-                }
-            }
-            else if (result == 'C')
-            {
-                BitStream peerBS = BitStream();
-                peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
-                RakString rs = RakString("List of available channels:");
-                peerBS.Write(rs);
-                theUser->SendBitStream(&peerBS);
-
-                for (const auto& [chanid, chan] : channelPool.GetList())
-                {
-                    peerBS.Reset();
-                    peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
-                    rs = RakString("(%d) - %s", chanid, chan.Name().c_str());
-                    peerBS.Write(rs);
-                    theUser->SendBitStream(&peerBS);
-                }
-            }
-
-
             break;
         }
 
-        case ID_CHANNEL_ACTION:
+        case ID_COMMAND:
         {
             RakChatUser* theUser = userPool.get(packet->guid);
             if (!theUser)
                 break;
-
             BitStream bsIn = BitStream(packet->data, packet->length, false);
             bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
-            unsigned char result;
-            if (bsIn.Read(result) && result == 'J')
-            {
-                uint16_t chanId = 0;
-                bsIn.Read(chanId);
-
-                RakChatChannel* oldChan = channelPool.IsUserInAnyChannel(theUser);
-                RakChatChannel* newChan = channelPool.GetChannel(chanId);
-
-                if (newChan)
-                {   if (oldChan)
-                        oldChan->LeaveChannel(theUser, LEAVE_GRACEFULLY);
-                    newChan->JoinChannel(theUser);
-                }
-            }
-            break;
+            RakString rsCMD;
+            bsIn.Read(rsCMD);
+            std::string cmdtext = rsCMD.C_String();
+            ProcessSlashCommand(cmdtext, theUser);
         }
+        break;
+    }
+}
+
+void RakChatServer::ProcessSlashCommand(const std::string& cmdtext, RakChatUser* issuer)
+{
+    if (cmdtext.find("/peerlist") == 0) 
+    {
+        BitStream peerBS = BitStream();
+        peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
+        RakString rs = RakString("List of connected peers:");
+        peerBS.Write(rs);
+        issuer->SendBitStream(&peerBS);
+        
+        for (const auto& [ uid, chatUser ] : userPool.GetPeerList())
+        {
+            peerBS.Reset();
+            peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
+            rs = RakString("(%d) - %s", uid, chatUser.Name.c_str());
+            peerBS.Write(rs);
+            issuer->SendBitStream(&peerBS);
+        }         
+    }
+
+    else if (cmdtext.find("/channellist") == 0)
+    {
+        BitStream peerBS = BitStream();
+        peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
+        RakString rs = RakString("List of available channels:");
+        peerBS.Write(rs);
+        issuer->SendBitStream(&peerBS);
+        for (const auto& [chanid, chan] : channelPool.GetList())
+        {
+            peerBS.Reset();
+            peerBS.Write((RakNet::MessageID)ID_SYSTEM_MESSAGE);
+            rs = RakString("(%d) - %s", chanid, chan.Name().c_str());
+            peerBS.Write(rs);
+            issuer->SendBitStream(&peerBS);
+        }
+    }
+
+    else if (cmdtext.find("/joinchannel") == 0)
+    {
+        std::istringstream iss(cmdtext);
+
+        std::string command;
+        uint16_t IdToJoin;
+        
+        iss >> command >> IdToJoin;
+
+        if (iss.fail())
+        {
+            issuer->PushSystemMessage("Usage: /joinchannel <Channel ID>");
+            return;
+        }
+
+        IdToJoin = std::clamp(IdToJoin, static_cast<uint16_t>(0), static_cast<uint16_t>(65535));
+
+
+        RakChatChannel* oldChan = channelPool.IsUserInAnyChannel(issuer);
+        RakChatChannel* newChan = channelPool.GetChannel(IdToJoin);
+
+        if (newChan)
+        {   if (oldChan)
+                oldChan->LeaveChannel(issuer, LEAVE_GRACEFULLY);
+            newChan->JoinChannel(issuer);
+        }
+        else
+            issuer->PushSystemMessage("Invalid channel ID.");
+
+        return;
     }
 }
 

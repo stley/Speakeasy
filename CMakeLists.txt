@@ -19,6 +19,7 @@ set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(opus)
 add_subdirectory(portaudio)
+add_subdirectory(SDL)
 
 target_include_directories(raknet PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/RakNet/Source
@@ -28,7 +29,7 @@ target_include_directories(raknet PUBLIC
 
 # Some RakNet builds require this on Windows
 if (WIN32)
-    target_compile_definitions(raknet PRIVATE _CRT_SECURE_NO_WARNINGS)
+    #target_compile_definitions(raknet PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 if (WIN32)
@@ -48,35 +49,63 @@ target_link_libraries(SpeakeasyServer PRIVATE
     opus
 )
 
-# --- Client ---
-add_executable(SpeakeasyClient
-    client/client.cpp
-    client/device.cpp
-    client/encode.cpp
-    client/voice.cpp
+add_library(SpeakeasyCore STATIC
+    client/SpeakEngine.cpp
+    client/SoundDevice.cpp
+    client/Encoder.cpp
+)
+target_link_libraries(SpeakeasyCore PUBLIC
+    raknet
+    portaudio
+    opus
 )
 
+
+# --- Client ---
+add_executable(SpeakeasyClient
+    client/Client.cpp
+)
+target_link_libraries(SpeakeasyClient PRIVATE SpeakeasyCore)
+
+
 add_executable(SpeakeasyUI
-    client-ui/client.cpp
-    client-ui/device.cpp
-    client-ui/encode.cpp
-    client-ui/voice.cpp
+    guiclient/GUIClient.cpp
+    guiclient/Client.cpp
+    microui/render.c    
+    microui/microui.c
+)
+
+
+target_link_directories(SpeakeasyUI PRIVATE
+    ${CMAKE_SOURCE_DIR}/build/SDL/$<CONFIG>
 )
 
 target_link_libraries(SpeakeasyUI PRIVATE
-    raknet
-    portaudio
-    opus
+    SpeakeasyCore
+    ${CMAKE_SOURCE_DIR}/build/SDL/$<CONFIG>/SDL2-static$<$<CONFIG:Debug>:d>.lib
+    opengl32
+    imm32
+    version
 )
 
-target_link_libraries(SpeakeasyClient PRIVATE
-    raknet
-    portaudio
-    opus
-)
+#set_target_properties(SpeakeasyUI PROPERTIES
+#    WIN32_EXECUTABLE OFF
+#)
 
+#target_link_options(SpeakeasyUI PRIVATE
+#    "/SUBSYSTEM:CONSOLE"
+#)
+
+
+
+target_include_directories(SpeakeasyCore PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/client
+)
 target_include_directories(SpeakeasyUI PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/common)
+    ${CMAKE_CURRENT_SOURCE_DIR}/SDL/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/microui
+)
 
 target_include_directories(SpeakeasyClient PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common)

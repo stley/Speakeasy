@@ -25,5 +25,6 @@ enum GameMessages
     ID_QUERY,
     // + uchar 'P' - peerlist
     // // + uchar 'C' - channellist
-    ID_CHANNEL_ACTION
+    ID_CHANNEL_ACTION,
+    ID_COMMAND
 };

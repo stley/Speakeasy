@@ -7,3 +7,6 @@
 [submodule "portaudio"]
 	path = portaudio
 	url = https://github.com/stley/portaudio
+[submodule "SDL"]
+	path = SDL
+	url = https://github.com/stley/SDL

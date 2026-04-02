@@ -1,42 +1,56 @@
 #include "Client.hpp"
-#ifdef _WIN32
-    #include <conio.h>
-#else
-    #include <Kbhit.h>
-    #define _kbhit kbhit
-    #define _getch getch
-#endif
-
 #include <algorithm>
 #include <sstream>
 
 std::atomic<bool> clientInit{ true };
+
+
+
+
 
 RakChatClient::RakChatClient()
 {
     packet = nullptr;
     peer = RakNet::RakPeerInterface::GetInstance();
     peer->Startup(1, &sd, 1);
-    printf("RakChat Client started.\n");
+    //ConsolePrint("RakChat Client started.\n");
     
 }
 RakChatClient::~RakChatClient()
 {
     running_ = false;
     connected_ = false;
-    peer->Shutdown(300);
+    
     if(workerThread.joinable())
     {
         workerThread.join();
     }
-    
+    peer->Shutdown(300);
     RakNet::RakPeerInterface::DestroyInstance(peer);
 }
 
+void RakChatClient::ClientConfigure(const char* ip, unsigned short port, const char* username)
+{
+    config_.serverIp = ip;
+    config_.serverPort = std::clamp(port, (unsigned short)0, (unsigned short)65534);
+    config_.userName = username;
+    std::cout << "INPUT: " << config_.serverIp << " " << config_.serverPort << " " << config_.userName << " " << "\n";
+    return;
+}
+void RakChatClient::ClientConnect()
+{
+    std::cout << "Connecting\n";
+    SetClientState(Connecting);
+    peer->Connect(config_.serverIp.c_str(), config_.serverPort, nullptr, 0);
+    std::cout << "peer->Connect()\n";
+    running_ = true;
+    workerThread = std::thread(&RakChatClient::ClientThread, this);
+    return;
+}
 
 void RakChatClient::ClientThread()
 {
-    //printf("Packet thread: It's on! :)\n");
+    //ConsolePrint("Packet thread: It's on! :)\n");
     while(running_)
     {
         for (packet=peer->Receive(); packet; peer->DeallocatePacket(packet), packet=peer->Receive())
@@ -53,20 +67,23 @@ void RakChatClient::ClientThread()
                     bs.Read(myId);
                     if (result == 'Y')
                     {
-                        printf("You registered as %s (%d).", config_.userName.c_str(), myId);
-                        printf(" Now you can send messages.\n");
+                        state_ = Connected;
+                        //ConsolePrint("You registered as %s (%d).", config_.userName.c_str(), myId);
+                        //ConsolePrint(" Now you can send messages.\n");
                         voiceEngine = new SpeakeasyEngine(peer);
                         this->connected_ = true;
                     }
                     else if (result == 'O')
                     {
-                        printf("Registration failed because name is in use.\n");
+                        state_ = RegistrationFailed;
+                        //ConsolePrint("Registration failed because name is in use.\n");
                         clientInit = true;
                         return;
                     }
                     else
                     {
-                        printf("Registration failed.");
+                        state_ = RegistrationFailed;
+                        //ConsolePrint("Registration failed.");
                         clientInit = true;
                         return;
                     }
@@ -75,8 +92,8 @@ void RakChatClient::ClientThread()
                         
                 case ID_CONNECTION_REQUEST_ACCEPTED:
 				{
-					printf("You are connected! Registering you...\n");
-                    
+					//ConsolePrint("You are connected! Registering you...\n");
+                    state_ = Registering;
                     serverAddress = peer->GetSystemAddressFromIndex(0);
                     BitStream bs = BitStream();
                     bs.Write(static_cast<RakNet::MessageID>(ID_REGISTER_ME));
@@ -87,21 +104,22 @@ void RakChatClient::ClientThread()
 
                 case ID_CONNECTION_LOST:
                 {
-                    printf("Connection lost.\n");
+                    //ConsolePrint("Connection lost.\n");
                     clientInit = true;
                     return;
                 }
 
 				case ID_CONNECTION_ATTEMPT_FAILED:
                 {
-                    printf("Failed to connect to server.\n");
+                    state_ = FailedConnection;
+                    //ConsolePrint("Failed to connect to server.\n");
                     clientInit = true;
                     return;
                 }
 
                 case ID_DISCONNECTION_NOTIFICATION:
                 {
-                    printf("Connection dropped, probably by the server.\n");
+                    //ConsolePrint("Connection dropped, probably by the server.\n");
                     clientInit = true;
                     return;
                 }
@@ -146,7 +164,7 @@ void RakChatClient::ClientThread()
             
                 case ID_NO_FREE_INCOMING_CONNECTIONS:
                 {
-                    printf("The server is full.\n");
+                    //ConsolePrint("The server is full.\n");
 			        break;
                 }
     		        
@@ -160,25 +178,33 @@ void RakChatClient::ClientThread()
                     BitStream bsIn = BitStream(packet->data, packet->length, false);
                     uint16_t userid;
                     uint16_t size;
+                    RakString fromNome;
                     bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
-                    
                     if (!bsIn.Read(userid)) break;
                     if (!bsIn.Read(size)) break;
                     if (size == 0 || size > 512)
                     {
-                        printf("Invalid Buffer size: %d\n", size);
+                        //ConsolePrint("Invalid Buffer size: %d\n", size);
                         break;
                     }
                     if(bsIn.GetNumberOfUnreadBits() < size * 8)
                     {
-                        printf("Malformed voice packet.\n");
+                        //ConsolePrint("Malformed voice packet.\n");
                         break;
                     }
-                    RakString rsName;
-                    bsIn.Read(rsName);
+                    bsIn.Read(fromNome);
+
+                    /*
+                    ID_VOICE_DATA
+                    USER ID, UNSIGNED 16 BIT INT
+                    LENGTH OF BUFFER
+                    NAME OF SPEAKER
+                    ACTUAL VOICE DATA
+                    */
+
                     uint8_t buf[512];
                     bsIn.Read(reinterpret_cast<char*>(buf), size);
-                    voiceEngine->OnNetworkVoice(userid, buf, size, rsName.C_String());
+                    voiceEngine->OnNetworkVoice(userid, buf, size, fromNome.C_String());
                     break;
                 }
 			    default:
@@ -214,21 +240,21 @@ void RakChatClient::ProcessSlashCommand(const std::string& cmdtext)
     {
         if(!voiceEngine) return;
         bool state = voiceEngine->GetDevice()->Deaf();
-        printf("%s\n", (state) ? "Deafen." : "Undeafen.");
+        //ConsolePrint("%s\n", (state) ? "Deafen." : "Undeafen.");
     }
 
     else if(cmdtext.find("/mute") == 0)
     {
         if(!voiceEngine) return;
         bool state = voiceEngine->GetDevice()->Mute();
-        printf("%s\n", (state) ? "Muted." : "Unmuted.");
+        //ConsolePrint("%s\n", (state) ? "Muted." : "Unmuted.");
     }
 
     else if (cmdtext.find("/loopback") == 0)
     {
         if(!voiceEngine) return;
         bool state = voiceEngine->GetDevice()->ToggleLoopback();
-        printf("%s\n", (state) ? "Now you can hear yourself." : "Now you can't hear yourself.");
+        //ConsolePrint("%s\n", (state) ? "Now you can hear yourself." : "Now you can't hear yourself.");
     }
 
     else if (cmdtext.find("/mastervolume") == 0)
@@ -311,13 +337,13 @@ void RakChatClient::ClientMain()
 {
     while (config_.serverIp.empty())
     {
-        printf("Input server IP Address: ");
+        //ConsolePrint("Input server IP Address: ");
         std::getline(std::cin, config_.serverIp);
     }
 
     while (true)
     {
-        printf("Input server port: ");
+        //ConsolePrint("Input server port: ");
         std::string portString;
         std::getline(std::cin, portString);
         if(portString.empty())
@@ -344,14 +370,12 @@ void RakChatClient::ClientMain()
 
     while (config_.userName.empty())
     {
-        printf("Please enter your username: ");
+        //ConsolePrint("Please enter your username: ");
         std::getline(std::cin, config_.userName);
     }
-    printf("Done! We will patch you up to %s:%d, %s...\n", config_.serverIp.c_str(), config_.serverPort, config_.userName.c_str());
+    //ConsolePrint("Done! We will patch you up to %s:%d, %s...\n", config_.serverIp.c_str(), config_.serverPort, config_.userName.c_str());
     
-    peer->Connect(config_.serverIp.c_str(), config_.serverPort, nullptr, 0);
-    running_ = true;
-    workerThread = std::thread(&RakChatClient::ClientThread, this);
+    
     
 
     std::string writeBuffer;
@@ -397,64 +421,6 @@ void RakChatClient::ClientMain()
                     break;
             }    
         }
-        
-        if (_kbhit())
-        {
-            int ch = _getch();
-            
-            if(ch == 8)
-            {
-                if(!writeBuffer.empty())
-                {
-                    writeBuffer.pop_back();
-                    std::cout << "\b \b";
-                }
-
-            }
-
-            else if (ch == '\r')
-            {
-                if (writeBuffer.empty()) continue;
-                if (writeBuffer[0] == '/')
-                {
-                    std::cout << "\n";
-                    ProcessSlashCommand(writeBuffer);
-                }
-                else
-                {
-                    BitStream bsOut = BitStream();
-                    bsOut.Write(static_cast<RakNet::MessageID>(ID_CHAT_MESSAGE));
-                    bsOut.Write(writeBuffer.c_str());
-                    peer->Send(&bsOut, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);    
-                }
-                writeBuffer.clear();
-                std::cout << "\r\33[2K> " << std::flush;
-            }
-            else
-            {
-                if (writeBuffer.length() <= 144)
-                {
-                    writeBuffer.push_back(ch);
-                    std::cout << static_cast<char>(ch);
-                }
-            }
-
-        }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-
 }
-
-int main()
-{
-    
-    while (clientInit)
-    {
-        clientInit = false;
-        RakChatClient theClient;
-        theClient.ClientMain();
-    }
-    return 0;
-}
-
-

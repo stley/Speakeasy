@@ -6,8 +6,8 @@
 #include <atomic>
 #include <queue>
 #include <thread>
-#include "device.hpp"
-#include "encode.hpp"
+#include "SoundDevice.hpp"
+#include "Encoder.hpp"
 #include <array>
 #include <mutex>
 
@@ -26,7 +26,12 @@ struct RemoteVoice
     std::queue<std::array<int16_t, DEFAULT_FRAMES_PER_BUFFER>> jitter;
     bool started = false;
     float speakerVolume = 1.0f;
-    uint16_t millisecs_to_delete = 10000; //10 seconds of no activity to drop the remote voice object
+    std::string rvUsername;
+    void SetPeerVolume(float value)
+    { 
+        speakerVolume = value / 100.0f;
+    }
+    float GetPeerVolume() { return speakerVolume; }
 };
 
 using namespace RakNet;
@@ -45,13 +50,14 @@ public:
     ~SpeakeasyEngine();
     void Shutdown();
     void OnAudioInput(int16_t* pcm, unsigned long frameCount);
-    void OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size);
+    void OnNetworkVoice(uint16_t id, uint8_t* data, uint16_t size, const char* fromName);
     void spkThread();
     AudioDevice* GetDevice();
     void MixOutput(int16_t* out);
     void SetMasterVolume(float value);
     float GetMasterVolume() { return masterVolume; }
     uint8_t GetState() { return engineState; }
+    RemoteVoice* GetRemoteVoice(uint16_t id);
 private:
     
     std::queue<VoiceBuffer> captureQueue;

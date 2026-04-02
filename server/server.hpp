@@ -39,6 +39,8 @@ private:
     RakChatUserPool userPool;
     ChannelPool channelPool;
     RakChatChannel* rootPtr = nullptr;
+
+    void ProcessSlashCommand(const std::string& cmdtext, RakChatUser* issuer);
 public:
 
     RakChatServer();

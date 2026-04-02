@@ -1,5 +1,5 @@
-#include "device.hpp"
-#include "voice.hpp"
+#include "SoundDevice.hpp"
+#include "SpeakEngine.hpp"
 #include <algorithm>
 
 AudioDevice::AudioDevice()

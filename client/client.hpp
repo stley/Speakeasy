@@ -4,17 +4,12 @@
 #include <queue>
 #include <mutex>
 #include <rakChat.h>
-#include "voice.hpp"
-#include "device.hpp"
+#include "SpeakEngine.hpp"
+#include "SoundDevice.hpp"
 #include <atomic>
 
-#ifdef _WIN32
-    #include <conio.h>
-#else
-    #include <Kbhit.h>
-    #define _kbhit kbhit
-    #define _getch getch
-#endif
+
+
 
 using namespace RakNet;
 
@@ -40,7 +35,15 @@ struct ChatMessage
     std::string messageContent;
 };
 
-
+enum ClientState : uint8_t
+{
+    Init = 0x00,
+    Connecting,
+    Registering,
+    RegistrationFailed,
+    FailedConnection,
+    Connected
+};
 
 
 class RakChatClient
@@ -57,6 +60,8 @@ private:
     std::mutex queueMutex;
     SystemAddress serverAddress = UNASSIGNED_SYSTEM_ADDRESS;
 
+    ClientState state_ = Init;
+
     //Voice
     SpeakeasyEngine* voiceEngine = nullptr;
 
@@ -67,5 +72,16 @@ private:
 public:
     RakChatClient();
     ~RakChatClient();
+    ClientState GetClientState() { return state_; }
+    void SetClientState(ClientState newState) { state_ = newState; }
     void ClientMain();
+    void ClientConfigure(const char* ip, unsigned short port, const char* username);
+    void ClientConnect();
+    void Mute()
+    {
+        if (voiceEngine)
+            voiceEngine->GetDevice()->Mute();
+    }
+
+    void SendMessage(const char* message);
 };
