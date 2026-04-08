@@ -2,6 +2,7 @@
 #define RENDERER_H
 
 #include "microui.h"
+#include <string.h>
 #include <SDL.h>
 
 void r_init();
