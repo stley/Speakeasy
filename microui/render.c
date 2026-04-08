@@ -31,7 +31,7 @@ void r_init() {
     
   window = SDL_CreateWindow(
     NULL, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-    width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
+    width, height, SDL_WINDOW_OPENGL);
   SDL_GL_CreateContext(window);
 
   /* init gl */
