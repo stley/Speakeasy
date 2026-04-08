@@ -83,13 +83,24 @@ target_link_directories(SpeakeasyUI PRIVATE
     ${CMAKE_SOURCE_DIR}/build/SDL/$<CONFIG>
 )
 
-target_link_libraries(SpeakeasyUI PRIVATE
-    SpeakeasyCore
-    ${CMAKE_SOURCE_DIR}/build/SDL/$<CONFIG>/SDL2-static$<$<CONFIG:Debug>:d>.lib
-    opengl32
-    imm32
-    version
-)
+if (WIN32)
+    target_link_libraries(SpeakeasyUI PRIVATE
+        SpeakeasyCore
+        ${CMAKE_SOURCE_DIR}/build/SDL/$<CONFIG>/SDL2-static$<$<CONFIG:Debug>:d>.lib
+        opengl32
+        imm32
+        version
+    )
+elseif(UNIX)
+    find_package(OpenGL REQUIRED)
+    target_link_libraries(SpeakeasyUI PRIVATE
+        SpeakeasyCore
+        SDL2-static
+        OpenGL::GL
+        pthread
+        m
+    )
+endif()
 
 #set_target_properties(SpeakeasyUI PROPERTIES
 #    WIN32_EXECUTABLE OFF
