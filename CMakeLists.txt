@@ -64,13 +64,16 @@ target_link_libraries(SpeakeasyCore PUBLIC
 # --- Client ---
 add_executable(SpeakeasyClient
     client/Client.cpp
+    client/main.cpp
 )
 target_link_libraries(SpeakeasyClient PRIVATE SpeakeasyCore)
 
 
 add_executable(SpeakeasyUI
+    client/Client.cpp
     guiclient/GUIClient.cpp
-    guiclient/Client.cpp
+    guiclient/main.cpp
+    guiclient/CClient.cpp
     microui/render.c    
     microui/microui.c
 )

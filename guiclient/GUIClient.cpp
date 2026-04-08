@@ -82,7 +82,12 @@ void GUIClient::Initialize()
         {
             switch (event.type)
             {
-                case SDL_QUIT: exit(EXIT_SUCCESS); break;
+                case SDL_QUIT: 
+                {
+                    exit(EXIT_SUCCESS);
+                    delete under_.release();
+                    break;
+                }
                 case SDL_MOUSEMOTION: mu_input_mousemove(ctx, event.motion.x, event.motion.y); break;
                 case SDL_MOUSEWHEEL: mu_input_scroll(ctx, 0, event.wheel.y * -30); break;
                 case SDL_TEXTINPUT: mu_input_text(ctx, event.text.text); break;
@@ -135,14 +140,12 @@ void GUIClient::ProcessGUI()
         
         case FailedConnection:
         {
-            if (under_) delete under_;
-            under_ = new RakChatClient();
+            under_ = std::make_unique<ExtendedClient>();
             PromptInitWindow(); break;
         }
         case RegistrationFailed:
         {
-            if (under_) delete under_;
-            under_ = new RakChatClient();
+            under_ = std::make_unique<ExtendedClient>();
             PromptInitWindow(); break;
         }
         case Init:
@@ -171,9 +174,9 @@ void GUIClient::PromptInitWindow()
     if (mu_begin_window_ex(ctx, winTitle.c_str(), mu_rect(0, 0, 300, 300), MU_OPT_NOCLOSE | MU_OPT_NORESIZE | MU_OPT_NOINTERACT | MU_OPT_NOSCROLL))
     {
         //int submit = 0;
-        static char ipAddr[20];
-        static char svPort[7];
-        static char myUsername[64];
+        static char ipAddr[20] = "127.0.0.1";
+        static char svPort[7] = "60000";
+        static char myUsername[64] = "RakChatUser";
         int label_widths[] = {130, 100, 100};
         int widths[] = {100, 100, 100};
 
@@ -225,34 +228,43 @@ void GUIClient::PromptMainWindow()
 {
     Resize(800, 600);
 
-    if (mu_begin_window_ex(ctx, "", mu_rect(0, 0, 800, 600), MU_OPT_NORESIZE | MU_OPT_NOINTERACT | MU_OPT_NOSCROLL))
+    if (mu_begin_window_ex(ctx, "", mu_rect(0, 0, 800, 600), MU_OPT_NORESIZE | MU_OPT_NOINTERACT | MU_OPT_NOSCROLL | MU_OPT_NOTITLE))
     {
-        
+        int _w[] = { -1 };
+        mu_layout_row(ctx, 1, _w, -200);
+        mu_begin_panel(ctx, "Channel list");
+        mu_label(ctx, "¡Hola, Mundo!");
+        mu_end_panel(ctx);
+        mu_layout_row(ctx, 1, _w, -30);
+        mu_begin_panel(ctx, "Console Output");
+        mu_Container* panel = mu_get_current_container(ctx);
+        mu_layout_row(ctx, 1, _w, -1);
+        mu_text(ctx, under_->FetchBuffer());
+        mu_end_panel(ctx);
+        if (under_->PollBuff())
+        {
+            panel->scroll.y = panel->content_size.y;
+        }
+        static char writeBuffer[256];
+        int send = 0;
+        int w_[] = { -70, -1 };
+        mu_layout_row(ctx, 2, w_, 0);
+        if (mu_textbox(ctx, writeBuffer, sizeof(writeBuffer)) & MU_RES_SUBMIT) 
+        {
+            mu_set_focus(ctx, ctx->last_id);
+            send = 1;
+        }
+        if (mu_button(ctx, "Send"))
+            send = 1;
+
+        if (send )
+        {
+            if (writeBuffer[0] != '\0')
+            {
+                under_->SendMessage(writeBuffer);
+                writeBuffer[0] = '\0';
+            }
+        }
     }
     mu_end_window(ctx);
-}
-
-int main()
-{
-    GUIClient visual_;
-
-    visual_.Initialize();
-    return 0;
-}
-
-void GUIClient::ConsolePrint(const char* fmt, ...)
-{
-    char buffer[1024];
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buffer, sizeof(buffer), fmt, args);
-    va_end(args);
-    Message out;
-    out.msg = buffer;
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex_);
-        messages_.emplace_back(out);
-        if(messages_.size() > 500)
-            messages_.pop_front();
-    }
 }

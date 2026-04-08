@@ -8,7 +8,7 @@
 #include "SoundDevice.hpp"
 #include <atomic>
 
-
+extern std::atomic<bool> clientInit;
 
 
 using namespace RakNet;
@@ -48,7 +48,7 @@ enum ClientState : uint8_t
 
 class RakChatClient
 {
-private:
+protected:
     ConnectionConfig config_;
     RakNet::RakPeerInterface *peer;
     SocketDescriptor sd;
@@ -65,23 +65,13 @@ private:
     //Voice
     SpeakeasyEngine* voiceEngine = nullptr;
 
-    void ClientThread();
-    
-    void ProcessSlashCommand(const std::string& cmdtext);
+    virtual void ClientThread();
+    virtual void ProcessSlashCommand(const std::string& cmdtext);
 
 public:
     RakChatClient();
     ~RakChatClient();
     ClientState GetClientState() { return state_; }
-    void SetClientState(ClientState newState) { state_ = newState; }
-    void ClientMain();
-    void ClientConfigure(const char* ip, unsigned short port, const char* username);
-    void ClientConnect();
-    void Mute()
-    {
-        if (voiceEngine)
-            voiceEngine->GetDevice()->Mute();
-    }
-
-    void SendMessage(const char* message);
+    virtual void SetClientState(ClientState newState) { state_ = newState; }
+    virtual void ClientMain();
 };
