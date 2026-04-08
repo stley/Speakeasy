@@ -10,6 +10,7 @@
 #include "Encoder.hpp"
 #include <array>
 #include <mutex>
+#include <string>
 
 
 constexpr unsigned long DEFAULT_SAMPLE_RATE = 48000;
