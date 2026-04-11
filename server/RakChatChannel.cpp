@@ -4,7 +4,7 @@
 #include <algorithm>
 
 
-
+using namespace RakNet;
 
 
 
@@ -28,6 +28,7 @@ RakChatChannel::~RakChatChannel()
 
 bool RakChatChannel::JoinChannel(RakChatUser* user)
 {
+    printf("Patching %s to channel %s.\n", user->Name.c_str(), this->Name().c_str());
     if (!IsUserInChannel(user))
     {
         users_.insert(user);
@@ -41,6 +42,7 @@ bool RakChatChannel::JoinChannel(RakChatUser* user)
 
 bool RakChatChannel::LeaveChannel(RakChatUser* user, uint8_t type)
 {
+    printf("Dropping %s from channel %s.\n", user->Name.c_str(), this->Name().c_str());
     if (IsUserInChannel(user))
     {
         users_.erase(user);
@@ -49,7 +51,6 @@ bool RakChatChannel::LeaveChannel(RakChatUser* user, uint8_t type)
         msg += "\".";
         user->PushSystemMessage(msg.c_str());
         return true;
-        //implement some way to send messages through here! DONE!
     }
     return false;
 }
@@ -119,4 +120,3 @@ const RakChatChannel* ChannelPool::GetChannel(uint16_t channel_id) const
     }
     return nullptr;
 }
-

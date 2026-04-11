@@ -48,6 +48,8 @@ enum ClientState : uint8_t
 
 class RakChatClient
 {
+private:
+    std::queue<ChatMessage> MessageQueue;
 protected:
     ConnectionConfig config_;
     RakNet::RakPeerInterface *peer;
@@ -56,7 +58,6 @@ protected:
     std::thread workerThread;
     std::atomic<bool> running_ = false;
     std::atomic<bool> connected_ = false;
-    std::queue<ChatMessage> MessageQueue;
     std::mutex queueMutex;
     SystemAddress serverAddress = UNASSIGNED_SYSTEM_ADDRESS;
 

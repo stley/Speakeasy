@@ -13,11 +13,19 @@ RakChatServer::RakChatServer()
     isServerRunning = true;
     workerThread = std::thread(&RakChatServer::MainThread, this);
 
+    peer->AttachPlugin(&rpc4);
+
     RakChatChannel rootCh = RakChatChannel("Root", nullptr, 0);
 
-    RakChatChannel testCh = RakChatChannel("Test", nullptr, 0);
+    RakChatChannel testCh = RakChatChannel("Test0", nullptr, 0);
+
+    RakChatChannel testCh1 = RakChatChannel("Test1", nullptr, 0);
+
+    RakChatChannel testCh2 = RakChatChannel("Test2", nullptr, 0);
     uint16_t rootId = channelPool.CreateChannel(rootCh);
     uint16_t testId = channelPool.CreateChannel(testCh);
+    testId = channelPool.CreateChannel(testCh1);
+    testId = channelPool.CreateChannel(testCh2);
 }
 RakChatServer::~RakChatServer()
 {
@@ -85,6 +93,28 @@ void RakChatServer::HandlePacket(Packet *packet)
                 userPool.BroadcastSystemMessage(system_message.c_str(), packet->guid);
 
                 channelPool.GetChannel(0)->JoinChannel(userPool.get(newId));
+
+                BitStream bs = BitStream();
+                printf("Building tree for client...\n");
+                for (const auto& [cid, rcchan] : channelPool.GetList())
+                {
+                    bs.Write(cid);
+                    bs.Write(channelPool.toID(rcchan.GetParent()));
+                    RakString chanName(rcchan.Name().c_str());
+                    bs.Write(chanName);
+                    printf("%d | %d | %s\n", cid, channelPool.toID(rcchan.GetParent()), rcchan.Name().c_str());
+                    rpc4.Signal("ChannelInfo", &bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, false, false);
+                    bs.Reset();
+                }
+                for (const auto& [uid, rcuser] : userPool.GetPeerList())
+                {
+                    /*bs.Write(uid);
+                    uint16_t userchannel = channelPool.IsUserInAnyChannel(&theUser)
+                    bs.Write(userchannel);
+                    RakString nome(rcuser.Name.c_str());
+                    bs.Write(nome);
+                    rpc4.Signal("UserInfo")*/
+                }
             }
             break;
         }
@@ -226,6 +256,38 @@ void RakChatServer::HandlePacket(Packet *packet)
             bsIn.Read(rsCMD);
             std::string cmdtext = rsCMD.C_String();
             ProcessSlashCommand(cmdtext, theUser);
+        }
+        case ID_CHANNEL_ACTION:
+        {
+            RakChatUser* theUser = userPool.get(packet->guid);
+            if (!theUser)
+                break;
+            BitStream bsIn = BitStream(packet->data, packet->length, false);
+            bsIn.IgnoreBytes(sizeof(RakNet::MessageID));
+            unsigned char option;
+            bsIn.Read(option);
+            switch (option)
+            {
+                case 'J':
+                {
+                    uint16_t IdToJoin = 0;
+                    bsIn.Read(IdToJoin);
+
+                    RakChatChannel* oldChan = channelPool.IsUserInAnyChannel(theUser);
+                    RakChatChannel* newChan = channelPool.GetChannel(IdToJoin);
+
+                    if (newChan)
+                    {   if (oldChan)
+                            oldChan->LeaveChannel(theUser, LEAVE_GRACEFULLY);
+                        newChan->JoinChannel(theUser);
+                    }
+                    else
+                        theUser->PushSystemMessage("Invalid channel ID.");
+                    break;
+                }
+            }
+            
+
         }
         break;
     }

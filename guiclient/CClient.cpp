@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <sstream>
 
-
+static ExtendedClient* clientPtr = nullptr;
 
 
 ExtendedClient::ExtendedClient()
@@ -10,7 +10,10 @@ ExtendedClient::ExtendedClient()
     packet = nullptr;
     peer = RakNet::RakPeerInterface::GetInstance();
     peer->Startup(1, &sd, 1);
-    
+    peer->AttachPlugin(&rpc4);
+    clientPtr = this;
+    printf("RPC REGISTRATION");
+    rpcRegister();
 }
 ExtendedClient::~ExtendedClient()
 {
@@ -24,6 +27,53 @@ ExtendedClient::~ExtendedClient()
     peer->Shutdown(300);
     RakNet::RakPeerInterface::DestroyInstance(peer);
 }
+
+void rpcUserInfo(RakNet::BitStream* userData, RakNet::Packet* packet)
+{
+    if (!clientPtr)
+    {
+        printf("invalid client pointer"); 
+        return;
+    }
+
+    uint16_t user_id;
+    uint16_t user_channel;
+    RakString user_name;
+    userData->Read(user_id);
+    userData->Read(user_channel);
+    userData->Read(user_name);
+
+    clientPtr->PushUser(user_id, user_channel, user_name.C_String());
+}
+void rpcChannelInfo(RakNet::BitStream* userData, RakNet::Packet* packet)
+{
+    if (!clientPtr)
+    {
+        printf("invalid client pointer"); 
+        return;
+    }
+        
+
+    uint16_t channel_id;
+    uint16_t channel_parent;
+    RakString channel_name;
+    userData->Read(channel_id);
+    userData->Read(channel_parent);
+    userData->Read(channel_name);
+
+    printf("RPC4: %d %d %s", channel_id, channel_parent, channel_name.C_String());
+
+    clientPtr->PushChannel(channel_id, channel_parent, channel_name.C_String());
+}
+
+void ExtendedClient::rpcRegister()
+{
+    printf("Registering RPCS");
+    rpc4.RegisterSlot("ChannelInfo", &rpcChannelInfo, 1);
+    rpc4.RegisterSlot("UserInfo", &rpcUserInfo, 1);
+    printf("RPCS registered");
+}
+
 
 void ExtendedClient::ClientConfigure(const char* ip, unsigned short port, const char* username)
 {
@@ -53,6 +103,11 @@ void ExtendedClient::ClientThread()
 		{
 			switch (packet->data[0])
 			{
+                /*case ID_RPC:
+                {
+                    rpc4.OnReceive(packet);
+                    break;
+                }*/
                 case ID_REGISTER_ME:
                 {
                     BitStream bs = BitStream(packet->data, packet->length, false);
@@ -136,7 +191,7 @@ void ExtendedClient::ClientThread()
 
                     {
                         std::lock_guard<std::mutex> lock(queueMutex);
-                        MessageQueue.push(message);
+                        MessageQueue.push_back(message);
                         consoleBufUpdated = true;
                     }
                     break;
@@ -154,7 +209,7 @@ void ExtendedClient::ClientThread()
                     message.messageContent = rs_msg.C_String();
                     {
                         std::lock_guard<std::mutex> lock(queueMutex);
-                        MessageQueue.push(message);
+                        MessageQueue.push_back(message);
                     }
                     break;
                 }

@@ -32,6 +32,7 @@ private:
 public:
     RakChatChannel(const char* name, const char* password = nullptr, uint32_t capacity = 0);
     ~RakChatChannel();
+    RakChatChannel* GetParent() const  { return channel_parent; }
     const std::string& Name() const { return name_; }
     //uint32_t PeerCount() { return users_.size(); }
     bool JoinChannel(RakChatUser* user);
@@ -56,6 +57,16 @@ public:
     [[nodiscard]] const std::unordered_map<uint16_t, RakChatChannel>& GetList() { return channels_; }
     uint16_t CreateChannel(const RakChatChannel& channel);
     bool DeleteChannel(uint16_t channel_id);
+    uint16_t toID(RakChatChannel* chanPtr) const
+    {
+        if (!chanPtr) return 0;
+        for (const auto& [cid, chan] : channels_)
+        {
+            if (chanPtr == &chan) return cid;
+        }
+        return 0;
+    }
+
     RakChatChannel* IsUserInAnyChannel(const RakChatUser* user)
     {
         for (auto& [cid, chan] : channels_)
@@ -64,7 +75,7 @@ public:
         }
         return nullptr;
     }
-    const RakChatChannel* IsUserInAnyChannel(const RakChatUser* user) const 
+    const RakChatChannel* IsUserInAnyChannel(const RakChatUser* user) const
     {
         for (const auto& [cid, chan] : channels_)
         {

@@ -1,11 +1,46 @@
 #include "Client.hpp"
+#include <unordered_map>
+#include "RPC4Plugin.h"
+
+struct Channel
+{
+    uint16_t channelParent;
+    std::string channelName;
+};
+struct User
+{
+    uint16_t channelId;
+    std::string UserName;
+};
+
 class ExtendedClient : public RakChatClient
 {
 protected:
     virtual void ClientThread() override;
     virtual void ProcessSlashCommand(const std::string& cmdtext) override;
 
-    void (*printHandler)(const char*) = nullptr;
+    std::deque<ChatMessage> MessageQueue;
+    std::unordered_map<uint16_t, Channel> ChannelMap;
+    std::unordered_map<uint16_t, User> PeerMap;
+    
+
+
+    RPC4 rpc4;
+
+    
+
+    std::atomic<bool> consoleBufUpdated {false};
+    void ClientMain() override { };
+    void rpcRegister();
+public:
+
+    std::mutex cMapMutex_;
+    std::mutex pMapMutex_;
+    
+    ExtendedClient();
+    ~ExtendedClient();
+    void ClientConfigure(const char* ip, unsigned short port, const char* username);
+    void ClientConnect();
 
     void ConsolePrint(const char* fmt, ...)
     {
@@ -19,24 +54,16 @@ protected:
         out.messageContent = buffer;
         {
             std::lock_guard<std::mutex> lock(queueMutex);
-            MessageQueue.push(out);
+            if(MessageQueue.size() >= 500)
+                MessageQueue.pop_front();
+            MessageQueue.push_back(out);
         }
         consoleBufUpdated = true;
     }
 
-    std::atomic<bool> consoleBufUpdated {false};
-    void ClientMain() override { };
-public:
-    
-    
-    ExtendedClient();
-    ~ExtendedClient();
-    void ClientConfigure(const char* ip, unsigned short port, const char* username);
-    void ClientConnect();
-    
     const char* FetchBuffer()
     {
-        static std::queue<ChatMessage> localbuf;
+        static std::deque<ChatMessage> localbuf;
         {
             std::lock_guard<std::mutex> lock(queueMutex);
             std::swap(localbuf, MessageQueue);
@@ -67,7 +94,7 @@ public:
                 default:
                     break;
             }  
-            localbuf.pop();
+            localbuf.pop_front();
         }
         return buffstring.data();
     }
@@ -79,11 +106,34 @@ public:
             consoleBufUpdated = !consoleBufUpdated;
         return ret;
     }
+
+    std::unordered_map<uint16_t, Channel>& GetChannels() { return ChannelMap; };
+    std::unordered_map<uint16_t, User>& GetUsers() { return PeerMap; };
+    void PushChannel(uint16_t channelId, uint16_t parentId, const char* channelname)
+    {
+        Channel inC;
+        inC.channelParent = parentId;
+        inC.channelName = channelname;    
+        ChannelMap.emplace(channelId, inC);
+    }
+    void PushUser(uint16_t userid, uint16_t channelid, const char* username)
+    {
+        User inU;
+        inU.channelId = channelid;
+        inU.UserName = username;
+        PeerMap.emplace(userid, inU);
+    }
+    void Dropuser(uint16_t peerId);
     void SendMessage(const char* message);
-    void Mute()
+    void SendPacket(RakNet::BitStream* bs, PacketPriority priority, PacketReliability reliability, char orderingChannel)
+    {
+        peer->Send(bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0, serverAddress, false);
+    }
+    bool Mute()
     {
         if (voiceEngine)
-            voiceEngine->GetDevice()->Mute();
+            return voiceEngine->GetDevice()->Mute();
+        return false;
     }
 };
 

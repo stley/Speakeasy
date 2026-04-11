@@ -1,9 +1,10 @@
 #include "GUIClient.hpp"
 
 
+static GUIClient visual_;
+
 int main()
 {
-    GUIClient visual_;
 
     visual_.Initialize();
     return 0;

@@ -11,6 +11,7 @@
 #include "RakSleep.h"
 #include "RakChatUser.hpp"
 #include "RakChatChannel.hpp"
+#include "RPC4Plugin.h"
 
 using namespace RakNet;
 
@@ -22,6 +23,7 @@ private:
     std::thread workerThread;
     std::atomic<bool> isServerRunning = false;
 
+    RPC4 rpc4;
     
     RakNet::Packet *packet;
     
@@ -46,3 +48,4 @@ public:
     RakChatServer();
     ~RakChatServer();
 };
+

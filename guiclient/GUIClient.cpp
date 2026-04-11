@@ -1,4 +1,5 @@
 #include "GUIClient.hpp"
+//#include "BitStream.h"
 #include <algorithm>
 
 static int text_height(mu_Font font) {
@@ -185,27 +186,27 @@ void GUIClient::PromptInitWindow()
         mu_label(ctx, "IP:");
         mu_layout_row(ctx, 2, widths, 0);
         mu_label(ctx, "");
-        if(mu_textbox(ctx, ipAddr, sizeof(ipAddr))) {}
+        if (mu_textbox(ctx, ipAddr, sizeof(ipAddr))) {}
 
         mu_layout_row(ctx, 2, label_widths, 0);
         mu_label(ctx, "");
         mu_label(ctx, "Port:");
         mu_layout_row(ctx, 2, widths, 0);
         mu_label(ctx, "");
-        if(mu_textbox(ctx, svPort, sizeof(svPort))) {}
+        if (mu_textbox(ctx, svPort, sizeof(svPort))) {}
         mu_layout_row(ctx, 3, label_widths, 0);
         mu_label(ctx, "");
         mu_label(ctx, "Username:");
         mu_layout_row(ctx, 2, widths, 0);
         mu_label(ctx, "");
-        if(mu_textbox(ctx, myUsername, sizeof(myUsername))) {}
+        if (mu_textbox(ctx, myUsername, sizeof(myUsername))) {}
 
         mu_layout_row(ctx, 2, widths, 0);
         mu_label(ctx, "");
         mu_label(ctx, "");
         mu_layout_row(ctx, 2, widths, 0);
         mu_label(ctx, "");
-        if(mu_button(ctx, "Connect"))
+        if (mu_button(ctx, "Connect"))
         {
             unsigned short port = std::clamp(std::atoi(svPort), 0, 65535);
             if (port != 0)
@@ -230,25 +231,52 @@ void GUIClient::PromptMainWindow()
 
     if (mu_begin_window_ex(ctx, "", mu_rect(0, 0, 800, 600), MU_OPT_NORESIZE | MU_OPT_NOINTERACT | MU_OPT_NOSCROLL | MU_OPT_NOTITLE))
     {
-        int _w[] = { -1 };
-        mu_layout_row(ctx, 1, _w, -200);
+        mu_layout_row(ctx, 1, std::array<int, 1>{0}.data(), 0);
+        if (mu_button(ctx, "Mute"))
+        {
+            bool state = under_->Mute();
+            under_->ConsolePrint("%s", (state) ? "Muted." : "Unmuted.");
+        }
+        mu_layout_row(ctx, 1, std::array<int, 1>{-1}.data(), -200);
         mu_begin_panel(ctx, "Channel list");
-        mu_label(ctx, "¡Hola, Mundo!");
+        std::unordered_map<uint16_t, Channel> localChannelMap;
+        {
+            std::lock_guard<std::mutex> lock(under_->cMapMutex_);
+            localChannelMap = under_->GetChannels();
+        }
+        for (const auto& [cid, chan] : localChannelMap)
+        {
+            mu_push_id(ctx, &cid, sizeof(cid));
+            mu_layout_row(ctx, 3, std::array<int, 3>{-250, 0, 0}.data(), 0);
+            mu_label(ctx, chan.channelName.c_str());
+            if (mu_button(ctx, "Join"))
+            {
+                RakNet::BitStream bs = BitStream();
+                bs.Write((RakNet::MessageID)ID_CHANNEL_ACTION);
+                bs.Write((unsigned char)'J'); //join
+                bs.Write(cid);
+                under_->SendPacket(&bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0);
+            }
+            if (mu_button(ctx, "Options"))
+            {
+
+            }
+            mu_pop_id(ctx);
+        }
         mu_end_panel(ctx);
-        mu_layout_row(ctx, 1, _w, -30);
+        mu_layout_row(ctx, 1, std::array<int, 1>{-1}.data(), -30);
         mu_begin_panel(ctx, "Console Output");
         mu_Container* panel = mu_get_current_container(ctx);
-        mu_layout_row(ctx, 1, _w, -1);
+        mu_layout_row(ctx, 1, std::array<int, 1>{-1}.data(), -1);
         mu_text(ctx, under_->FetchBuffer());
-        mu_end_panel(ctx);
         if (under_->PollBuff())
         {
             panel->scroll.y = panel->content_size.y;
         }
+        mu_end_panel(ctx);
         static char writeBuffer[256];
         int send = 0;
-        int w_[] = { -70, -1 };
-        mu_layout_row(ctx, 2, w_, 0);
+        mu_layout_row(ctx, 2, std::array<int, 2>{-70, -1}.data(), 0);
         if (mu_textbox(ctx, writeBuffer, sizeof(writeBuffer)) & MU_RES_SUBMIT) 
         {
             mu_set_focus(ctx, ctx->last_id);

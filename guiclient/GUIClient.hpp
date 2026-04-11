@@ -23,17 +23,6 @@ extern "C"
 
 
 
-struct Channel
-{
-    uint16_t channelParent;
-    std::string channelName;
-};
-struct User
-{
-    uint16_t channelId;
-    std::string UserName;
-};
-
 
 class GUIClient 
 {
@@ -44,14 +33,6 @@ private:
     SDL_Event event;
     std::unique_ptr<ExtendedClient> under_;
     mu_Context *ctx = nullptr;
-
-    //std::deque<Message> messages_;
-    //std::mutex messagesMutex_;
-    std::unordered_map<uint16_t, Channel> ChannelMap;
-    std::unordered_map<uint16_t, User> UserMap;
-
-    std::vector<std::string> buffer_;
-
 
     void ProcessGUI();
 public:
@@ -66,6 +47,4 @@ public:
 
     void PromptInitWindow();
     void PromptMainWindow();
-
-    void ConsolePrint(const char* fmt, ...);
 };
